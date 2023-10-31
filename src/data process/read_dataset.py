@@ -1,11 +1,21 @@
 import json
 import os
+from src.utils.debug_message import Assert
 
-# json文件读取
+# 单个json文件读取
 def read_file_json(file_path):
-    assert os.path.exists(file_path), "ERROR: JSON file path doesn't exist."
+    Assert(os.path.exists(file_path), "Error: JSON file path doesn't exist")
+
     with open(file_path, 'r') as file:
         data = json.load(file)
+
+    return data
+
+# 批量json文件读取
+def read_files_json(file_path):
+    data = []
+    for file in file_path:
+        data.append(read_file_json(file))
 
     return data
 
@@ -18,9 +28,22 @@ def read_folder(directory):
 
     return files
 
+# 读取指定路径下一定长度的json文件
+def read_folder_files_json(directory, length = 0):
+    Assert(length >= 0, "Error: length must be positive")
+
+    files = read_folder(directory)
+    if length > 0:
+        files = files[0: length]
+
+    data = read_files_json(files)
+
+    return data
+
+
 if __name__ == "__main__":
     json_folder_path = "D:/Study/Projects/DeepLearning/Resources/Indoor/3D-FRONT/"
-    files = read_folder(json_folder_path)
-    json_data = read_file_json(files[0])
+
+    data = read_folder_files_json(json_folder_path, 10)
 
     print("Done!")
