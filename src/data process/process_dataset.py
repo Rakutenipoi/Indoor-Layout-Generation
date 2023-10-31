@@ -22,14 +22,14 @@ def original_house_data_filtering(house_data, needed_properties):
 
 # 提取卧室数据
 def extract_bedroom_data(original_data):
-    bedroom_data = []
+    scenes_bedroom_data = []
     spected_room_type = ['KidsRoom', 'Bedroom', 'MasterBedroom', 'SecondBedroom']
     for house in original_data:
         scene = house['scene']
         rooms = scene['room']
-        bedroom_data.append(extract_spected_room(rooms, spected_room_type))
+        scenes_bedroom_data.append(extract_spected_room(rooms, spected_room_type))
 
-    return bedroom_data
+    return scenes_bedroom_data
 
 # 特定房间类型提取
 def extract_spected_room(rooms, spected_room_type):
@@ -41,12 +41,39 @@ def extract_spected_room(rooms, spected_room_type):
 
     return spected_room
 
+# 提取出卧室场景的全部家具类型
+def extract_classes_from_rooms(scenes):
+    furniture_class = []
+
+    for scene in scenes:
+        for room in scene:
+            furniture_class.extend(extract_furniture(room))
+
+    return furniture_class
+
+# 家具类型提取
+def extract_furniture(room):
+    children = room['children']
+    furnitures = []
+
+    for child in children:
+        if 'furniture' in child['instanceid']:
+            furnitures.append(child)
+
+    return furnitures
+
 if __name__ == "__main__":
     json_folder_path = "D:/Study/Projects/DeepLearning/Resources/Indoor/3D-FRONT/"
 
+    # 读取原始数据
     original_data = read_folder_files_json(json_folder_path, 10)
+    # 剔除原始数据中不需要的属性
     data = original_full_data_filtering(original_data)
+    # 提取出卧室场景的数据
+    scenes_bedroom_data = extract_bedroom_data(data)
+    # 提取出卧室场景的全部家具类型 (需要注意，此时的家具可能包含重复的类型)
+    furniture_class = extract_classes_from_rooms(scenes_bedroom_data)
 
-    bedroom_data = extract_bedroom_data(data)
+
 
     print("done")
