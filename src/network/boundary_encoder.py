@@ -1,0 +1,43 @@
+import torch.nn as nn
+from torchvision import models
+
+class ResNet18(nn.Module):
+    def __init__(self, freeze_bn, input_channels, feature_size):
+        super(ResNet18, self).__init__()
+        self.feature_size = feature_size
+
+        self.boundary_encoder = models.resnet18(pretrained=False)
+
+        # 暂时先不考虑freeze_batch_norm的情况
+
+        self.boundary_encoder.conv1 = nn.Conv2d(
+            input_channels,
+            64,
+            kernel_size=(7, 7),
+            stride=(2, 2),
+            padding=(3, 3),
+            bias=False
+        )
+
+        self.boundary_encoder.fc = nn.Sequential(
+            nn.Linear(512, 512), nn.ReLU(),
+            nn.Linear(512, self.feature_size)
+        )
+        self.boundary_encoder.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+
+    def forward(self, x):
+        return self.boundary_encoder(x)
+
+def get_boundary_encoder(
+    name,
+    freeze_bn=False,
+    input_channels=1,
+    feature_size=128
+):
+    return {
+        "resnet18": ResNet18(
+            freeze_bn=freeze_bn,
+            input_channels=input_channels,
+            feature_size=feature_size
+        ),
+    }[name]

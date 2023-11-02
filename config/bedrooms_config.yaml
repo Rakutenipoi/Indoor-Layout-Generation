@@ -1,0 +1,16 @@
+data:
+    dataset_directory: ""
+    annotation_file: ""
+    room_layout_size: "64,64"
+
+network:
+
+
+boundary_encoder:
+    name: "resnet18"
+    feature_size: 64
+    freeze_bn: false
+    input_channels: 1
+
+
+
