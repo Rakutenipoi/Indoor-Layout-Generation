@@ -8,7 +8,7 @@ network:
 
 boundary_encoder:
     name: "resnet18"
-    feature_size: 64
+    feature_size: 256
     freeze_bn: false
     input_channels: 1
 

@@ -32,7 +32,7 @@ def get_boundary_encoder(
     name,
     freeze_bn=False,
     input_channels=1,
-    feature_size=128
+    feature_size=256
 ):
     return {
         "resnet18": ResNet18(
