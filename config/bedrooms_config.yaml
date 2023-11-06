@@ -2,15 +2,23 @@ data:
     dataset_directory: ""
     annotation_file: ""
     room_layout_size: "64,64"
+    attributes_num: 8
+    object_max_num: 125
+    class_num:
 
 network:
-
+    n_layers: 4
+    n_heads: 8
+    dimensions: 256
+    feed_forward_dimensions: 1024
+    max_sequence_length: 1000
 
 boundary_encoder:
     name: "resnet18"
-    feature_size: 256
-    freeze_bn: false
+    freeze_bn: False
     input_channels: 1
+    feature_size: 256
 
-
+training:
+    droupout: 0.1
 
