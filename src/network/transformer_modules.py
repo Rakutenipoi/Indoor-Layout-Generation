@@ -127,6 +127,7 @@ class DecoderLayer(nn.Module):
         x = self.norm2(x + self.dropout(attn_output))
         ff_output = self.feed_forward(x)
         x = self.norm3(x + self.dropout(ff_output))
+
         return x
 
 

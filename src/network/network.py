@@ -4,6 +4,7 @@ import torch.nn as nn
 import math
 from transformer_modules import EncoderLayer, DecoderLayer
 from boundary_encoder import get_boundary_encoder
+from sampling import Sampler
 
 class cofs_network(nn.Module):
     def __init__(self, config):
@@ -56,6 +57,8 @@ class cofs_network(nn.Module):
             config['boundary_encoder']['feature_size']
         )
 
+        self.sampler = Sampler(self.dimensions, self.class_num, config['network']['sampler'])
+
     def forward(self, sequence, layout_image, last_sequence):
         # Boundary Encoder
         layout_feature = self.boundary_encoder(layout_image)
@@ -83,6 +86,9 @@ class cofs_network(nn.Module):
         # Decoders Process
         decoder_output = last_sequence
         for decoder_layer in self.generative_decoder:
-            decoder_output = decoder_layer(decoder_output)
+            decoder_output = decoder_layer(decoder_output, encoder_output, None, None)
 
         # Output Sample
+        output = self.sampler(decoder_output)
+
+        return output

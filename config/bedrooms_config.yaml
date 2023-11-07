@@ -12,6 +12,10 @@ network:
     dimensions: 256
     feed_forward_dimensions: 1024
     max_sequence_length: 1000
+    sampler:
+        hidden_input_dimension: 512
+        hidden_output_dimension: 256
+        output_dimension: 30
 
 boundary_encoder:
     name: "resnet18"
