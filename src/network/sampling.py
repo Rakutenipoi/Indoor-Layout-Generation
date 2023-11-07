@@ -1,6 +1,4 @@
-import torch
 import torch.nn as nn
-import math
 
 class Sampler(nn.Module):
     def __init__(self, input_dimension, class_num, config):

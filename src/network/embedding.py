@@ -1,30 +1,32 @@
+import math
+
 import torch
 import torch.nn as nn
-import math
+
 
 class Embedding(nn.Module):
     def __init__(self, class_num, sequence_length, encode_levels=128, E_dims=256):
-        super(Embedding, self).__init__(class_num, encode_levels)
+        super(Embedding, self).__init__()
         self.E_class = nn.Parameter(torch.randn(class_num, E_dims))
         self.encode_levels = encode_levels
         self.sequence_length = sequence_length
         self.E_dims = E_dims
 
     def forward(self, x):
-        sequence = torch.zeros(self.max_sequence_length, self.E_dims)
+        sequence = torch.zeros(self.sequence_length, self.E_dims)
         idx = 0
 
         for token in x:
             if isinstance(token, int):
-                sequence[idx] = self.E_class[x, :]
+                sequence[idx,:] = self.E_class[x, :]
             else:
                 angles = torch.arange(128).float()  # 生成角度向量，范围为0到127
                 frequencies = 2 ** angles * math.pi  # 生成频率向量
-                sin_encodings = torch.sin(frequencies * x.unsqueeze(1))  # 计算正弦编码
-                cos_encodings = torch.cos(frequencies * x.unsqueeze(1))  # 计算余弦编码
-                encoding = torch.stack([sin_encodings, cos_encodings], dim=2)  # 按照 sin、cos 排布的顺序进行拼接
+                sin_encodings = torch.sin(frequencies * token)  # 计算正弦编码
+                cos_encodings = torch.cos(frequencies * token)  # 计算余弦编码
+                encoding = torch.stack([sin_encodings, cos_encodings], dim=1)  # 按照 sin、cos 排布的顺序进行拼接
                 encoding = encoding.view(-1, 256)  # 将编码向量展平为一维向量
-                sequence[idx] = encoding
+                sequence[idx,:] = encoding
             idx += 1
 
         return sequence
@@ -61,7 +63,7 @@ class ObjectIndexEncoding(nn.Module):
 
         for token in x:
             if idx % self.attributes_num == 0:
-                type = token
+                type = int(token)
             sequence[idx] = self.E_object_index[type, :]
             idx += 1
 
@@ -79,7 +81,7 @@ class AbsolutePositionEncoding(nn.Module):
         idx = 0
 
         for token in x:
-            sequence[idx] = self.E_absolute_position[idx / 8, :]
+            sequence[idx] = self.E_absolute_position[int(idx / 8), :]
             idx += 1
 
         return sequence

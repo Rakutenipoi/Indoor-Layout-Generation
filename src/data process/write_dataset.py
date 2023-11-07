@@ -1,5 +1,7 @@
-import numpy as np
 import os
+
+import numpy as np
+
 
 def write_data_in_numpy(data, path, file_name = "data.npy"):
     file_path = os.path.join(path, file_name)

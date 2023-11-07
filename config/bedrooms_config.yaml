@@ -24,5 +24,5 @@ boundary_encoder:
     feature_size: 256
 
 training:
-    droupout: 0.1
+    dropout: 0.1
 

@@ -1,5 +1,5 @@
 from read_dataset import read_folder_files_json
-from src.utils.debug_message import Assert
+
 
 # 整理原始数据，保留需要的部分
 def original_full_data_filtering(oringal_data):

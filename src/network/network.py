@@ -1,10 +1,14 @@
-from embedding import Embedding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
 import torch
 import torch.nn as nn
-import math
-from transformer_modules import EncoderLayer, DecoderLayer
-from boundary_encoder import get_boundary_encoder
-from sampling import Sampler
+
+import sys
+print(sys.path)
+
+from .boundary_encoder import get_boundary_encoder
+from .embedding import Embedding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
+from .sampling import Sampler
+from .transformer_modules import EncoderLayer, DecoderLayer
+
 
 class cofs_network(nn.Module):
     def __init__(self, config):
@@ -13,7 +17,7 @@ class cofs_network(nn.Module):
         self.n_heads = config['network']['n_heads']
         self.dimensions = config['network']['dimensions']
         self.d_ff = config['network']['feed_forward_dimensions']
-        self.droupout = config['training']['droupout']
+        self.dropout = config['training']['dropout']
         self.max_sequence_length = config['network']['max_sequence_length']
         self.attributes_num = config['data']['attributes_num']
         self.object_max_num = config['data']['object_max_num']
@@ -77,6 +81,10 @@ class cofs_network(nn.Module):
         sequence = torch.concat((layout_feature, sequence), dim=0)
         last_sequence = last_sequence + absolute_position
         last_sequence = torch.concat((torch.zeros((1, self.dimensions)), last_sequence), dim=0)
+
+        # 升维
+        sequence = torch.unsqueeze(sequence, dim=0)
+        last_sequence = torch.unsqueeze(last_sequence, dim=0)
 
         # Encoders Process
         encoder_output = sequence
