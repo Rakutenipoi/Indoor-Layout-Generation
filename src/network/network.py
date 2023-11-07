@@ -1,4 +1,4 @@
-from embedding import PositionEncoding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
+from embedding import Embedding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
 import torch
 import torch.nn as nn
 import math
@@ -19,7 +19,7 @@ class cofs_network(nn.Module):
         self.class_num = config['data']['class_num'] + 1 # 需要预留一个额外的类别用于标记起始与结束
 
         # 用max_sequence_length替代sequence_length
-        self.embedding = PositionEncoding(
+        self.embedding = Embedding(
             class_num=self.class_num,
             sequence_length=self.max_sequence_length,
             encode_levels=self.dimensions / 2,

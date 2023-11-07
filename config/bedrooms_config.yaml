@@ -4,7 +4,7 @@ data:
     room_layout_size: "64,64"
     attributes_num: 8
     object_max_num: 125
-    class_num:
+    class_num: 114514
 
 network:
     n_layers: 4

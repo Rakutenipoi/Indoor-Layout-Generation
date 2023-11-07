@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import math
 
-class PositionEncoding(nn.Module):
+class Embedding(nn.Module):
     def __init__(self, class_num, sequence_length, encode_levels=128, E_dims=256):
-        super(PositionEncoding, self).__init__(class_num, encode_levels)
+        super(Embedding, self).__init__(class_num, encode_levels)
         self.E_class = nn.Parameter(torch.randn(class_num, E_dims))
         self.encode_levels = encode_levels
         self.sequence_length = sequence_length
@@ -46,6 +46,7 @@ class RelativePositionEncoding(nn.Module):
             idx += 1
 
         return sequence
+
 class ObjectIndexEncoding(nn.Module):
     def __init__(self, max_sequence_length, object_max_num, attributes_num=8, E_dims=256):
         super().__init__()
