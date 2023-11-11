@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 
 class Sampler(nn.Module):
     def __init__(self, input_dimension, class_num, config):
@@ -15,16 +16,16 @@ class Sampler(nn.Module):
             nn.Linear(self.hidden_input_dimension, self.hidden_output_dimension),
             nn.ReLU(),
             nn.Linear(self.hidden_output_dimension, self.output_dimension),
-            nn.ReLU()
+            nn.Softmax()
         )
 
         self.discrete_layer = nn.Sequential(
             nn.Linear(self.input_dimension, self.class_num),
-            nn.ReLU()
+            nn.Softmax()
         )
 
-    def forward(self, x):
-        if isinstance(x, int):
+    def forward(self, x, is_class):
+        if is_class:
             x = self.discrete_layer(x)
         else:
             x = self.continue_layers(x)

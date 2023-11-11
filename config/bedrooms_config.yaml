@@ -4,14 +4,14 @@ data:
     room_layout_size: "64,64"
     attributes_num: 8
     object_max_num: 125
-    class_num: 114514
+    class_num: 114
 
 network:
     n_layers: 4
     n_heads: 8
     dimensions: 256
     feed_forward_dimensions: 1024
-    max_sequence_length: 1000
+    max_sequence_length: 200
     sampler:
         hidden_input_dimension: 512
         hidden_output_dimension: 256
@@ -25,4 +25,6 @@ boundary_encoder:
 
 training:
     dropout: 0.1
-
+    batch_size: 16
+    epoches: 100
+    lr: 0.0001
