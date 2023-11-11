@@ -3,7 +3,7 @@ import numpy as np
 
 from network.network import cofs_network
 from utils.yaml_reader import read_file_in_path
-from utils.loss import property_loss, class_type_loss
+from utils.loss import property_loss_distribution, property_loss_single, class_type_loss
 
 # GPU
 if torch.cuda.is_available():
@@ -26,7 +26,7 @@ lr = training_config['lr']
 
 # 训练数据读取
 num_elements = max_sequence_length
-bNewData = False
+bNewData = True
 
 ## 二值图
 layout_image = torch.randn(batch_size, 1, 256, 256)
@@ -39,6 +39,7 @@ if bNewData:
             src_data[:, i, :] = src_data[:, i, :] * 100
     src_list = src_data.numpy()
     np.save('data/src.npy', src_list)
+    src_data = torch.tensor(src_data)
 else:
     src_data = torch.from_numpy(np.load('data/src.npy'))
 
@@ -70,7 +71,7 @@ if __name__ == '__main__':
                 loss = class_type_loss(output, src_data[:, j, :])
             else:
                 output = cofs_model(src_data, layout_image, tgt_data, False)
-                loss = property_loss(output, src_data[:, j, :])
+                loss = property_loss_single(output, src_data[:, j, :])
 
             # Teacher-forcing
             tgt_data[:,j,:] = src_data[:,j,:]
