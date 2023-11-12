@@ -59,11 +59,12 @@ class cofs_network(nn.Module):
             config['boundary_encoder']['feature_size']
         )
 
-        self.decoder_to_output = nn.Linear((self.max_sequence_length + 1) * self.dimensions, 1 * self.dimensions)
+        self.decoder_to_output_attr = nn.Linear((self.max_sequence_length + 1) * self.dimensions, (self.attributes_num - 1) * self.dimensions)
+        self.decoder_to_output_type = nn.Linear((self.max_sequence_length + 1) * self.dimensions, 1 * self.dimensions)
 
         self.sampler = Sampler(self.dimensions, self.class_num, config['network']['sampler'])
 
-    def forward(self, sequence, layout_image, last_sequence, is_class):
+    def forward(self, sequence, layout_image, last_sequence):
         # Boundary Encoder
         layout_feature = self.boundary_encoder(layout_image)
         layout_feature = layout_feature.unsqueeze(1).to(torch.device("cuda:0"))
@@ -93,14 +94,17 @@ class cofs_network(nn.Module):
             decoder_output = decoder_layer(decoder_output, encoder_output, None, None)
 
         # 此时的decoder_output的尺寸为[batch_size, sequence_size + 1, dimension_size]
-        ## 我们需要将这个尺寸转化为[batch_size, 1, dimension_size]
+        ## 我们需要将这个尺寸转化为[batch_size, attr_size, dimension_size]
         ## 将输入张量形状转换为[batch_size, (sequence_size + 1) * dimension_size]
         decoder_output = decoder_output.view(self.batch_size, -1)
-        decoder_output = self.decoder_to_output(decoder_output)
-        ## 将输出张量形状转换为[batch_size, 1, dimension_size]
-        decoder_output = decoder_output.view(self.batch_size, -1, self.dimensions)
+        decoder_output_type = self.decoder_to_output_type(decoder_output)
+        decoder_output_attr = self.decoder_to_output_attr(decoder_output)
+        ## 将输出张量形状转换为[batch_size, attr_size, dimension_size]
+        decoder_output_type = decoder_output_type.view(self.batch_size, -1, self.dimensions)
+        decoder_output_attr = decoder_output_attr.view(self.batch_size, -1, self.dimensions)
 
         # Output Sample
-        output = self.sampler(decoder_output, is_class)
+        output_type = self.sampler(decoder_output_type, True)
+        output_attr = self.sampler(decoder_output_attr, False)
 
-        return output
+        return output_type, output_attr

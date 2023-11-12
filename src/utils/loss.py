@@ -10,7 +10,7 @@ def class_type_loss(predicted_class, ground_truth):
     predict = predicted_class.squeeze()
     truth = ground_truth.squeeze().to(int)
 
-    loss = F.cross_entropy(predict.float(), truth.float(), reduction='none') / batch_size
+    loss = F.cross_entropy(predict.float(), truth.float(), reduction='none')
     loss.requires_grad = True
 
     return loss
@@ -32,7 +32,7 @@ def property_loss_distribution(predicted_property, ground_truth):
     # 对数概率密度
     log_probs = logistics.log_prob(samples)
 
-    nll_loss = log_probs.mean() / batch_size
+    nll_loss = log_probs.mean()
 
     return nll_loss
 
