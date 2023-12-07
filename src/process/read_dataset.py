@@ -24,6 +24,23 @@ def read_files_json(file_path):
 # 查看指定路径下的文件
 def read_folder(directory):
     files = []
+    for filename in os.listdir(directory):
+        if not os.path.isfile(os.path.join(directory, filename)):
+            files.append(os.path.join(directory, filename))
+
+    return files
+
+def read_file(directory):
+    files = []
+    for filename in os.listdir(directory):
+        if os.path.isfile(os.path.join(directory, filename)):
+            files.append(os.path.join(directory, filename))
+
+    return files
+
+# 查看指定路径下的所有文件
+def read_full_file(directory):
+    files = []
     for root, _, filenames in os.walk(directory):
         for filename in filenames:
             files.append(os.path.join(root, filename))

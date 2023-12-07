@@ -1,21 +1,24 @@
 import torch
 import numpy as np
+from torchviz import make_dot
 import sys
-from torchview import draw_graph
 
 from network.network import cofs_network
 from utils.yaml_reader import read_file_in_path
-from utils.loss import property_loss_distribution, property_loss_single, class_type_loss
+from utils.loss import *
+from process.read_dataset import *
+from process.process_dataset import *
+
+# 系统设置
+sys.setrecursionlimit(100000)
+sys.stdout.flush = True
 
 # GPU
 if torch.cuda.is_available():
-    dev = "cuda:0"
+    dev = "cuda"
 else:
     dev = "cpu"
 device = torch.device(dev)
-
-# 系统设置
-# sys.setrecursionlimit(10000)
 
 # 读取config
 config_path = 'config'
@@ -35,39 +38,38 @@ lr = training_config['lr']
 
 # 训练数据读取
 num_elements = max_sequence_length
-bNewData = True
+bNewData = False
 
-## 二值图
-layout_image = torch.randn(batch_size, 1, 256, 256)
-
-## src
 if bNewData:
-    src_data = torch.rand(batch_size, num_elements, 1)
-    for i in range(src_data.size()[1]):
-        if i % attr_num == 0:
-            src_data[:, i, :] = src_data[:, i, :] * 100
-    src_list = src_data.numpy()
-    np.save('data/src.npy', src_list)
-    src_data = torch.tensor(src_data)
+    src_data, layout_image = process_data(config)
+    os.makedirs(os.path.dirname('data/processed/bedrooms/'), exist_ok=True)
+    np.save('data/processed/bedrooms/bedrooms_src_data', src_data)
+    np.save('data/processed/bedrooms/bedrooms_layout_image', layout_image)
 else:
-    src_data = torch.from_numpy(np.load('data/src.npy'))
+    src_data = np.load('data/processed/bedrooms/bedrooms_src_data.npy')
+    layout_image = np.load('data/processed/bedrooms/bedrooms_layout_image.npy')
 
-## tgt
-tgt_data = torch.zeros_like(src_data)
+# 将numpy数据转换为tensor
+src_data = torch.tensor(src_data, dtype=torch.float32)
+layout_image = torch.tensor(layout_image, dtype=torch.float32)
 
 ## 其他处理
 layout_image = layout_image.to(device)
 src_data = src_data.to(device)
-tgt_data = tgt_data.to(device)
+ground_truth = src_data.clone()
+
+src_data.requires_grad = True
+layout_image.requires_grad = True
+
+# 其他数据
+batch_num = src_data.size(0)
 
 # 创建网络模型
 cofs_model = cofs_network(config).to(device)
+# print(cofs_model)
 
 # 优化器
 optimizer = torch.optim.Adam(cofs_model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-9)
-
-# 模型可视化
-# make_dot(output, params=dict(list(cofs_model.named_parameters()))).render("model_view/type_cofs_transformer_torchviz", format="png")
 
 if __name__ == '__main__':
     # 设置为训练模式
@@ -75,21 +77,30 @@ if __name__ == '__main__':
 
     # 迭代训练
     for i in range(epoches):
+        idx = i % batch_num
+        src = src_data[idx]
+        layout = layout_image[idx]
+        tgt_data = torch.zeros(batch_size, max_sequence_length).to(device)
+        tmp = torch.zeros(batch_size, max_sequence_length).to(device)
+
         for j in range(0, max_sequence_length, attr_num):
             # 前向传播
-            output_type, output_attr = cofs_model(src_data, layout_image, tgt_data)
+            output_type, output_attr = cofs_model(src, layout, tgt_data)
+
+            # for param in cofs_model.named_parameters():
+            #     print(param)
+
             ## 类型生成
-            output_type = torch.argmax(output_type, dim=2)
-            src_data_class = src_data[:, j, :]
-            loss_type = class_type_loss(output_type, src_data_class)
+            output_type_debug = torch.argmax(output_type, dim=2)
+            gt_data_class = ground_truth[idx, :, j]
+            ## 类别损失计算
+            loss_type = class_type_loss_cross_nll(output_type.squeeze(1), gt_data_class)
             ## 其他属性生成
-            loss_attr = property_loss_single(output_attr, src_data[:, j : j + attr_num - 1, :])
+            loss_attr = property_loss_single(output_attr, ground_truth[idx, :, j + 1 : j + attr_num])
 
             # total loss
-            loss = (loss_type + loss_attr) / batch_size
-
-            # Teacher-forcing
-            tgt_data[:, j : j + attr_num, :] = src_data[:, j : j + attr_num, :]
+            #loss = (loss_type + loss_attr) / batch_size
+            loss = loss_type / batch_size
 
             # 清除梯度
             optimizer.zero_grad()
@@ -99,9 +110,22 @@ if __name__ == '__main__':
 
             # 更新参数
             optimizer.step()
-            print(f"Epoch: {i+1}, token: {int(j / 8) + 1}, Loss: {loss.item()}")
+
+            # Teacher-forcing
+            tmp[:, j: j + attr_num] = ground_truth[idx, :, j: j + attr_num]
+            tgt_data = tmp.clone()
+            tgt_data.requires_grad = True
+
+            print(f"Epoch: {i+1}, token: {int(j / 8) + 1}, Loss: {loss.item() * 100.0}")
+
+            # 可视化
+            # dot = make_dot(loss, params=dict(cofs_model.named_parameters()))
+            # dot.render('model/bedrooms_model', view=False)
+
+
+    # 保存模型
+    torch.save(cofs_model, 'model/bedrooms_model.pth')
 
 
 
 
-    print('done')

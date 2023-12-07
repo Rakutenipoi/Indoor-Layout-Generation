@@ -1,13 +1,17 @@
 import torch
 import torch.nn as nn
 
-import sys
-print(sys.path)
-
 from .boundary_encoder import get_boundary_encoder
 from .embedding import Embedding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
 from .sampling import Sampler
 from .transformer_modules import EncoderLayer, DecoderLayer
+
+# GPU
+if torch.cuda.is_available():
+    dev = "cuda"
+else:
+    dev = "cpu"
+device = torch.device(dev)
 
 class cofs_network(nn.Module):
     def __init__(self, config):
@@ -56,7 +60,8 @@ class cofs_network(nn.Module):
             config['boundary_encoder']['name'],
             config['boundary_encoder']['freeze_bn'],
             config['boundary_encoder']['input_channels'],
-            config['boundary_encoder']['feature_size']
+            config['boundary_encoder']['feature_size'],
+            config['data']['room_layout_size']
         )
 
         self.decoder_to_output_attr = nn.Linear((self.max_sequence_length + 1) * self.dimensions, (self.attributes_num - 1) * self.dimensions)
@@ -66,22 +71,23 @@ class cofs_network(nn.Module):
 
     def forward(self, sequence, layout_image, last_sequence):
         # Boundary Encoder
-        layout_feature = self.boundary_encoder(layout_image)
-        layout_feature = layout_feature.unsqueeze(1).to(torch.device("cuda:0"))
+        layout_feature = self.boundary_encoder(layout_image.unsqueeze(1))
+        layout_feature = layout_feature.unsqueeze(1).to(torch.device(device))
+
         # Positional Encoding
-        relative_position = self.relative_position_encoding(sequence).to(torch.device("cuda:0"))
-        object_index = self.object_index_encoding(sequence).to(torch.device("cuda:0"))
-        absolute_position = self.absolute_position_encoding(last_sequence).to(torch.device("cuda:0"))
+        relative_position = self.relative_position_encoding(sequence).to(torch.device(device))
+        object_index = self.object_index_encoding(sequence).to(torch.device(device))
+        absolute_position = self.absolute_position_encoding(last_sequence).to(torch.device(device))
 
         # Embedding
-        sequence = self.embedding(sequence).to(torch.device("cuda:0"))
-        last_sequence = self.embedding(last_sequence).to(torch.device("cuda:0"))
+        sequence = self.embedding(sequence).to(torch.device(device))
+        last_sequence = self.embedding(last_sequence).to(torch.device(device))
 
         # Input Blend & Concatenate
         sequence = sequence + relative_position + object_index
         sequence = torch.concat((layout_feature, sequence), dim=1)
         last_sequence = last_sequence + absolute_position
-        last_sequence = torch.concat((torch.zeros((self.batch_size, 1, self.dimensions)).to(torch.device("cuda:0")), last_sequence), dim=1)
+        last_sequence = torch.concat((torch.zeros((self.batch_size, 1, self.dimensions)).to(torch.device(device)), last_sequence), dim=1)
 
         # Encoders Process
         encoder_output = sequence
@@ -108,3 +114,32 @@ class cofs_network(nn.Module):
         output_attr = self.sampler(decoder_output_attr, False)
 
         return output_type, output_attr
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

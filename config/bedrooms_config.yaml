@@ -1,10 +1,10 @@
 data:
-    dataset_directory: ""
+    dataset_directory: "D:\\Study\\Projects\\DeepLearning\\UrbanGeneration\\Indoor\\ATISS Remake\\data\\raw"
     annotation_file: ""
-    room_layout_size: "64,64"
+    room_layout_size: 256
     attributes_num: 8
-    object_max_num: 125
-    class_num: 114
+    object_max_num: 25
+    class_num: 23
 
 network:
     n_layers: 4
@@ -24,7 +24,7 @@ boundary_encoder:
     feature_size: 256
 
 training:
-    dropout: 0.1
+    dropout: 0.3
     batch_size: 32
-    epoches: 100
-    lr: 0.00001
+    epoches: 300
+    lr: 0.0001
