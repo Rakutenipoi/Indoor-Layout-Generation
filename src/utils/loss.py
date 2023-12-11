@@ -29,7 +29,7 @@ def class_type_loss(predicted_class, ground_truth, class_num):
     return loss
 
 def class_type_loss_cross_nll(predict, truth):
-    truth = truth.squeeze().to(int)
+    truth = truth.to(int)
     m = nn.LogSoftmax(dim=1)
     nll_loss = nn.NLLLoss()
 
@@ -60,7 +60,7 @@ def property_loss_distribution(predicted_property, ground_truth):
 
 def property_loss_single(predicted_property, ground_truth):
     predict = predicted_property.squeeze()
-    truth = ground_truth.squeeze()
+    truth = ground_truth
 
     mse_loss = nn.MSELoss()
     output = mse_loss(predict, truth)
@@ -76,6 +76,9 @@ def log_sum_exp(x):
     m, _ = torch.max(x, dim=axis)
     m2, _ = torch.max(x, dim=axis, keepdim=True)
     return m + torch.log(torch.sum(torch.exp(x - m2), dim=axis))
+
+# predict为(batch_size, class_num)，ground_truth为(batch_size, 1)，通过交叉熵计算每一个batch上的损失
+
 
 def dmll(pred, target, log_scale_min=-7.0, num_classes=256):
     """Discretized mixture of logistic distributions loss

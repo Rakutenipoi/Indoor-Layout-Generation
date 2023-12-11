@@ -1,7 +1,9 @@
+import math
 import os.path
 import numpy as np
 from .read_dataset import *
 from src.utils.yaml_reader import *
+import itertools
 
 # 整理原始数据，保留需要的部分
 def original_full_data_filtering(oringal_data):
@@ -76,6 +78,7 @@ def build_data_set(rooms):
 def process_data(config):
     max_sequence_length = config['network']['max_sequence_length']
     batch_size = config['training']['batch_size']
+    object_max_num = config['data']['object_max_num']
 
     data_folder = read_folder(config['data']['dataset_directory'])
     rooms_dir = []
@@ -83,51 +86,110 @@ def process_data(config):
         rooms_dir.append(read_file(folder))
 
     rooms = []
+    layouts = []
+    index = 0
+    normalized_min = -1
+    normalized_max = 1
     for room_dir in rooms_dir:
-        sequence = []
+        furnitures = []
         room = np.load(room_dir[0], allow_pickle=True)
         class_labels = room['class_labels']
         translations = room['translations']
         sizes = room['sizes']
         angles = room['angles']
         layout = room['room_layout']
+
+        # sizes_min = np.min(sizes, axis=0)
+        # sizes_max = np.max(sizes, axis=0)
+        angles_min = -math.pi
+        angles_max = math.pi
+        translations_min = np.min(translations, axis=0)
+        translations_max = np.max(translations, axis=0)
+
         for i in range(class_labels.shape[0]):
+            furniture = []
             # 读取(1, 23)的nparray中具有最大值的元素索引
-            class_label = np.argmax(class_labels[i])
+            class_label = np.argmax(class_labels[i]) + 1 # 设定0为特殊类
             translation = translations[i]
             size = sizes[i]
             angle = angles[i]
-            sequence.append(class_label)
-            sequence.append(translation[0])
-            sequence.append(translation[1])
-            sequence.append(translation[2])
-            sequence.append(size[0])
-            sequence.append(size[1])
-            sequence.append(size[2])
-            sequence.append(angle[0])
 
-        # 根据max_sequence_length进行填充
-        while len(sequence) < max_sequence_length:
-            sequence.append(0)
-        sequence = np.array(sequence)
-        rooms.append([sequence, layout])
+            # 归一化至[-1, 1]
+            #size = 2 * (size - sizes_min) / (sizes_max - sizes_min) - 1
+            angle = 2 * (angle - angles_min) / (angles_max - angles_min) - 1
+            translation = 2 * (translation - translations_min) / (translations_max - translations_min) - 1
 
-    # 将rooms按照batch_size进行划分
-    batch_num = int(len(rooms) / batch_size)
-    rooms = np.array(rooms, dtype=object)[:batch_num * batch_size]
-    rooms = rooms.reshape(-1, batch_size, 2)
-    # 将rooms中的数据分别存储到src_data和layout_image
-    sequence = np.array(rooms[:, :, 0])
-    layout = np.array(rooms[:, :, 1])
+            furniture.append(class_label)
+            furniture.append(translation[0])
+            furniture.append(translation[1])
+            furniture.append(translation[2])
+            furniture.append(size[0])
+            furniture.append(size[1])
+            furniture.append(size[2])
+            furniture.append(angle[0])
+            furnitures.append(furniture)
+
+        # 根据object_max_num进行填充，得到(object_max_num, 8)的nparray
+        while len(furnitures) < object_max_num:
+            furnitures.append([0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+        furnitures = np.array(furnitures)
+        rooms.append([furnitures, index])
+        layouts.append(layout)
+        index += 1
+
+    layouts = np.array(layouts)
+    rooms = np.array(rooms, dtype=object)
+    rooms = np.expand_dims(rooms, axis=1)
+
+    return rooms, layouts
+
+# 返回所有可能的家具排序
+def permute_furniture(rooms):
+    src_data, layout_image = extract_data(rooms)
+    extended_data = []
+    # 由于是对同一个房间内的家具排序进行修改，故不用变更layout中的数据排序
+    for i in range(src_data.shape[0]):
+        data = src_data[i, 0]
+        # 先获取房间的家具数量
+        zero_row_indices = np.where((data == 0).all(axis=1))[0][0]
+        permutations = list(itertools.permutations(range(zero_row_indices)))
+
+        full_sorted_data = []
+        for perm in permutations:
+            sorted_data = []
+            sorted_data.append(np.zeros_like(data))
+            sorted_data[-1][:zero_row_indices] = data[list(perm)]
+            full_sorted_data.append(sorted_data)
+        full_sorted_data = np.array(full_sorted_data)
+        full_sorted_data = np.squeeze(full_sorted_data, axis=1)
+        extended_data.append([full_sorted_data, layout_image[i]])
+
+    extended_data = np.array(extended_data, dtype=object)
+
+    return extended_data
+
+# 从object类型的ndarray中提取家具序列和布局图
+def extract_data(rooms):
+    rooms = rooms.reshape(-1, 2)
+    sequence = np.array(rooms[:, 0])
+    layout = np.array(rooms[:, 1])
     original_shape = sequence.shape
-    new_shape_src = np.empty((original_shape[0], original_shape[1], sequence[0, 0].shape[0]))
-    new_shape_layout = np.empty((original_shape[0], original_shape[1], layout[0, 0].shape[0], layout[0, 0].shape[1]))
+    new_shape_src = np.empty((original_shape[0], sequence[0].shape[0], sequence[0].shape[1]))
+    new_shape_layout = np.empty((original_shape[0], 1))
     for i in range(original_shape[0]):
-        for j in range(original_shape[1]):
-            new_shape_src[i, j, :] = sequence[i][j]
-            new_shape_layout[i, j, :, :] = np.squeeze(layout[i][j])
+        new_shape_src[i, :] = sequence[i]
+        new_shape_layout[i, :] = layout[i]
 
     return new_shape_src, new_shape_layout
+
+def shuffle_data(rooms):
+    for i in range(rooms.shape[0]):
+        data = rooms[i]
+        zero_row_indices = np.where((data == 0).all(axis=1))[0][0]
+        np.random.shuffle(data[:zero_row_indices])
+
+    return rooms
 
 if __name__ == "__main__":
     # json_folder_path = "D:/Study/Projects/DeepLearning/Resources/Indoor/3D-FRONT/"
@@ -158,6 +220,17 @@ if __name__ == "__main__":
     config_path = '../../config'
     config_name = 'bedrooms_config.yaml'
     config = read_file_in_path(config_path, config_name)
-    process_data(config)
+    rooms, layouts = process_data(config)
+    # rooms = permute_furniture(rooms[:10])
+
+    data_path = '../../data/processed/bedrooms/'
+    usage = 'full'
+    file_name = f'bedrooms_{usage}_data'
+    #layout_name = f'bedrooms_{usage}_layout'
+    os.makedirs(os.path.dirname(data_path), exist_ok=True)
+    np.save(os.path.join(data_path, file_name), rooms)
+    #np.save(os.path.join(data_path, layout_name), layouts)
+
+    #src_data, layout_image = extract_data(rooms)
 
     print("done")

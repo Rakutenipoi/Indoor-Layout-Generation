@@ -2,7 +2,7 @@ import torch.nn as nn
 from torchvision import models
 
 class ResNet18(nn.Module):
-    def __init__(self, freeze_bn, input_channels, feature_size, size):
+    def __init__(self, freeze_bn, input_channels, feature_size):
         super(ResNet18, self).__init__()
         self.feature_size = feature_size
 
@@ -33,13 +33,11 @@ def get_boundary_encoder(
     freeze_bn=False,
     input_channels=1,
     feature_size=256,
-    size=256
 ):
     return {
         "resnet18": ResNet18(
             freeze_bn=freeze_bn,
             input_channels=input_channels,
             feature_size=feature_size,
-            size=size
         ),
     }[name]

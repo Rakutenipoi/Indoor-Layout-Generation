@@ -6,3 +6,5 @@
 *.npz
 *.png
 *.npy
+*.zip
+*.pth

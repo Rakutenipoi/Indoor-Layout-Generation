@@ -25,7 +25,7 @@ class Embedding(nn.Module):
     def forward(self, x):
         batch_size = x.size(0)
         sequence_legnth = x.size(1)
-        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims))
+        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims)).to(torch.device(device))
 
         for batch in range(batch_size):
             for token in range(sequence_legnth):
@@ -37,7 +37,7 @@ class Embedding(nn.Module):
                     sin_encodings = torch.sin(frequencies * value)  # 计算正弦编码
                     cos_encodings = torch.cos(frequencies * value)  # 计算余弦编码
                     encoding = torch.stack([sin_encodings, cos_encodings], dim=1)  # 按照 sin、cos 排布的顺序进行拼接
-                    encoding = encoding.view(-1, 256).float().to(torch.device(device))  # 将编码向量展平为一维向量
+                    encoding = encoding.view(-1, 256).float()  # 将编码向量展平为一维向量
                     sequence[batch, token, :] = encoding
 
         return sequence
@@ -52,7 +52,7 @@ class RelativePositionEncoding(nn.Module):
     def forward(self, x):
         batch_size = x.size(0)
         sequence_legnth = x.size(1)
-        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims))
+        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims)).to(torch.device(device))
 
         for batch in range(batch_size):
             for token in range(sequence_legnth):
@@ -70,7 +70,7 @@ class ObjectIndexEncoding(nn.Module):
     def forward(self, x):
         batch_size = x.size(0)
         sequence_legnth = x.size(1)
-        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims))
+        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims)).to(torch.device(device))
 
         for batch in range(batch_size):
             for token in range(sequence_legnth):
@@ -90,7 +90,7 @@ class AbsolutePositionEncoding(nn.Module):
     def forward(self, x):
         batch_size = x.size(0)
         sequence_legnth = x.size(1)
-        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims))
+        sequence = torch.zeros((batch_size, sequence_legnth, self.E_dims)).to(torch.device(device))
 
         for batch in range(batch_size):
             for token in range(sequence_legnth):
