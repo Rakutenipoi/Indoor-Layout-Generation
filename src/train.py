@@ -3,6 +3,7 @@ import numpy as np
 from torchviz import make_dot
 import sys
 import msvcrt
+import time
 from torch.utils.data import DataLoader
 
 from network.network import cofs_network
@@ -43,17 +44,21 @@ checkpoint_freq = training_config['checkpoint_frequency']
 # 训练数据读取
 full_data = np.load('data/processed/bedrooms/bedrooms_full_data.npy', allow_pickle=True)
 layouts = np.load('data/processed/bedrooms/bedrooms_full_layout.npy')
+sequences = np.load('data/processed/bedrooms/bedrooms_full_sequence.npy')
 
-src_data, layout_index = extract_data(full_data)
-src_data = shuffle_data(src_data)
-src_data = src_data.reshape((src_data.shape[0], -1))
-batch_num = src_data.shape[0] // batch_size
-src_data = src_data[:batch_num * batch_size]
+# 提取数据
+sequence_index, layout_index, sequences_num = extract_data(full_data)
+
+# batch划分
+batch_num = sequence_index.shape[0] // batch_size
+sequence_index = sequence_index[:batch_num * batch_size]
 layout_index = layout_index[:batch_num * batch_size]
+sequences_num = sequences_num[:batch_num * batch_size]
 layouts = layouts[:batch_num * batch_size]
+sequences = sequences[:batch_num * batch_size]
 
 # 数据集转换
-src_dataset = COFSDataset(src_data, layout_index)
+src_dataset = COFSDataset(sequence_index, layout_index, sequences_num, config)
 dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True)
 
 # 创建网络模型
@@ -67,15 +72,26 @@ if __name__ == '__main__':
     cofs_model.train()
 
     # 迭代训练
+    epoch_time_start = time.time()
     for epoch in range(epoches):
-        print(f"Epoch: {epoch + 1} / {epoches}")
         batch_idx = 0
+        epoch_time = time.time()
+        batch_time_start = time.time()
+
         for batch in dataLoader:
+            batch_time = time.time()
             batch_idx += 1
             print(f"batch: {batch_idx} / {dataLoader.__len__()}")
             # 读取数据
-            src, layout_idx = batch
-            src = src.to(torch.float32).to(device)
+            src_idx, layout_idx, seq_num = batch
+            src_idx = src_idx.numpy().astype(int)
+            seq_num = seq_num.numpy().astype(int)
+            # 读取序列
+            src = []
+            for i in range(batch_size):
+                src.append(sequences[src_idx[i]])
+            src = np.array(src).reshape(batch_size, -1)
+            src = torch.tensor(src, dtype=torch.float32).to(device)
             ground_truth = src.clone()
             tmp = torch.zeros_like(ground_truth)
             tgt = torch.zeros_like(ground_truth)
@@ -123,11 +139,35 @@ if __name__ == '__main__':
                 tmp[:, j: j + attr_num] = ground_truth[:, j: j + attr_num]
                 tgt = tmp.clone()
                 tgt.requires_grad = True
+
+                # print per token
                 print(f"token: {int(j / 8) + 1}, Loss: {loss.item()}")
                 print("Type: ", end="")
                 for type in output_type_debug:
                     print(type.item(), end=" ")
                 print()
+
+            # print per batch
+            single_batch_time = time.time() - batch_time
+            single_batch_time = "{:02d}:{:02d}:{:02d}".format(int(single_batch_time // 3600),
+                                                              int((single_batch_time % 3600) // 60),
+                                                              int(single_batch_time % 60))
+            total_batch_time = time.time() - batch_time_start
+            total_batch_time = "{:02d}:{:02d}:{:02d}".format(int(total_batch_time // 3600),
+                                                             int((total_batch_time % 3600) // 60),
+                                                             int(total_batch_time % 60))
+            print(f"Time: {single_batch_time}, total time: {total_batch_time}")
+            print('--------------------------------------------------------------------------------')
+
+        # print per epoch
+        print(f"Epoch: {epoch + 1} / {epoches}")
+        single_epoch_time = time.time() - epoch_time
+        single_epoch_time = "{:02d}:{:02d}:{:02d}".format(int(single_epoch_time // 3600), int((single_epoch_time % 3600) // 60), int(single_epoch_time % 60))
+        total_epoch_time = time.time() - epoch_time_start
+        total_epoch_time = "{:02d}:{:02d}:{:02d}".format(int(total_epoch_time // 3600), int((total_epoch_time % 3600) // 60), int(total_epoch_time % 60))
+        print(f"Time: {single_epoch_time}, total time: {total_epoch_time}")
+        print('--------------------------------------------------------------------------------')
+        print('--------------------------------------------------------------------------------')
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数

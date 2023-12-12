@@ -5,6 +5,7 @@ data:
     attributes_num: 8
     object_max_num: 15
     class_num: 23
+    permutation_num: 100
 
 network:
     n_layers: 4
@@ -28,4 +29,4 @@ training:
     batch_size: 32
     epoches: 300
     checkpoint_frequency: 1
-    lr: 0.00000001
+    lr: 0.00001

@@ -1,9 +1,12 @@
 import math
 import os.path
+import random
 import numpy as np
 from .read_dataset import *
 from src.utils.yaml_reader import *
 import itertools
+import torch
+from torch.utils.data import Dataset
 
 # 整理原始数据，保留需要的部分
 def original_full_data_filtering(oringal_data):
@@ -79,6 +82,7 @@ def process_data(config):
     max_sequence_length = config['network']['max_sequence_length']
     batch_size = config['training']['batch_size']
     object_max_num = config['data']['object_max_num']
+    permutation_num = config['data']['permutation_num']
 
     data_folder = read_folder(config['data']['dataset_directory'])
     rooms_dir = []
@@ -87,9 +91,9 @@ def process_data(config):
 
     rooms = []
     layouts = []
-    index = 0
-    normalized_min = -1
-    normalized_max = 1
+    index = []
+    idx_layout = 0
+    idx_sequence = 0
     for room_dir in rooms_dir:
         furnitures = []
         room = np.load(room_dir[0], allow_pickle=True)
@@ -129,20 +133,28 @@ def process_data(config):
             furniture.append(angle[0])
             furnitures.append(furniture)
 
+        # 计算排列组合
+        # permutations = list(itertools.permutations(range(len(furnitures))))
+        # random.shuffle(permutations)
+        # permutations = permutations[:permutation_num]
+        furniture_num = len(furnitures)
         # 根据object_max_num进行填充，得到(object_max_num, 8)的nparray
         while len(furnitures) < object_max_num:
             furnitures.append([0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
         furnitures = np.array(furnitures)
-        rooms.append([furnitures, index])
+        rooms.append(furnitures)
         layouts.append(layout)
-        index += 1
+        index.append([idx_layout, idx_sequence, furniture_num])
+        idx_layout += 1
+        idx_sequence += 1
 
     layouts = np.array(layouts)
-    rooms = np.array(rooms, dtype=object)
-    rooms = np.expand_dims(rooms, axis=1)
+    rooms = np.array(rooms)
+    index = np.array(index, dtype=object)
+    #rooms = np.expand_dims(rooms, axis=1)
 
-    return rooms, layouts
+    return rooms, layouts, index
 
 # 返回所有可能的家具排序
 def permute_furniture(rooms):
@@ -169,19 +181,28 @@ def permute_furniture(rooms):
 
     return extended_data
 
+def permute(length):
+    permutations = list(itertools.permutations(range(length)))
+
+    return permutations
+
 # 从object类型的ndarray中提取家具序列和布局图
 def extract_data(rooms):
-    rooms = rooms.reshape(-1, 2)
-    sequence = np.array(rooms[:, 0])
-    layout = np.array(rooms[:, 1])
+    # rooms = rooms.reshape(-1, 3)
+    layout = np.array(rooms[:, 0])
+    sequence = np.array(rooms[:, 1])
+    length = np.array(rooms[:, 2])
+
     original_shape = sequence.shape
-    new_shape_src = np.empty((original_shape[0], sequence[0].shape[0], sequence[0].shape[1]))
+    new_shape_src = np.empty((original_shape[0], 1))
     new_shape_layout = np.empty((original_shape[0], 1))
+    new_shape_length = np.empty((original_shape[0], 1))
     for i in range(original_shape[0]):
         new_shape_src[i, :] = sequence[i]
         new_shape_layout[i, :] = layout[i]
+        new_shape_length[i, :] = length[i]
 
-    return new_shape_src, new_shape_layout
+    return new_shape_src, new_shape_layout, new_shape_length
 
 def shuffle_data(rooms):
     for i in range(rooms.shape[0]):
@@ -220,16 +241,18 @@ if __name__ == "__main__":
     config_path = '../../config'
     config_name = 'bedrooms_config.yaml'
     config = read_file_in_path(config_path, config_name)
-    rooms, layouts = process_data(config)
+    rooms, layouts, index = process_data(config)
     # rooms = permute_furniture(rooms[:10])
 
     data_path = '../../data/processed/bedrooms/'
     usage = 'full'
-    file_name = f'bedrooms_{usage}_data'
-    #layout_name = f'bedrooms_{usage}_layout'
+    file_name = f'bedrooms_{usage}_sequence'
+    layout_name = f'bedrooms_{usage}_layout'
+    data_name = f'bedrooms_{usage}_data'
     os.makedirs(os.path.dirname(data_path), exist_ok=True)
     np.save(os.path.join(data_path, file_name), rooms)
-    #np.save(os.path.join(data_path, layout_name), layouts)
+    np.save(os.path.join(data_path, layout_name), layouts)
+    np.save(os.path.join(data_path, data_name), index)
 
     #src_data, layout_image = extract_data(rooms)
 
