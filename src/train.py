@@ -17,6 +17,11 @@ from process.dataset import *
 sys.setrecursionlimit(100000)
 sys.stdout.flush = True
 
+# pytorch设置
+torch.set_printoptions(profile="full")
+torch.set_printoptions(sci_mode=False)
+np.set_printoptions(suppress=True)
+
 # GPU
 if torch.cuda.is_available():
     dev = "cuda"
@@ -32,6 +37,7 @@ config = read_file_in_path(config_path, config_name)
 # 数据集部分参数
 attr_num = config['data']['attributes_num']
 class_num = config['data']['class_num']
+permutation_num = config['data']['permutation_num']
 
 # 训练数据设置
 training_config = config['training']
@@ -42,9 +48,10 @@ lr = training_config['lr']
 checkpoint_freq = training_config['checkpoint_frequency']
 
 # 训练数据读取
-full_data = np.load('data/processed/bedrooms/bedrooms_full_data.npy', allow_pickle=True)
-layouts = np.load('data/processed/bedrooms/bedrooms_full_layout.npy')
-sequences = np.load('data/processed/bedrooms/bedrooms_full_sequence.npy')
+data_path = 'data/processed/bedrooms/'
+full_data = np.load(os.path.join(data_path, 'bedrooms_simple_data.npy'), allow_pickle=True)
+layouts = np.load(os.path.join(data_path, 'bedrooms_simple_layout.npy'))
+sequences = np.load(os.path.join(data_path, 'bedrooms_simple_sequence.npy'))
 
 # 提取数据
 sequence_index, layout_index, sequences_num = extract_data(full_data)
@@ -101,14 +108,23 @@ if __name__ == '__main__':
             for i in range(batch_size):
                 layout.append(layouts[layout_idx[i, 0]])
             layout = torch.tensor(layout, dtype=torch.float32).to(device)
+            # 根据seq_num生成排列组合
+            # permutations = []
+            # for num in seq_num:
+            #     order = permute(num[0])
+            #     random.shuffle(order)
+            #     order_len = min(permutation_num, len(order))
+            #     order = order[:order_len]
+            #     permutations.append(order)
             # 设置requires_grad
             src.requires_grad = True
             layout.requires_grad = True
             tgt.requires_grad = True
+            last_seq_num = np.zeros_like(seq_num)
 
             for j in range(0, max_sequence_length, attr_num):
                 # 前向传播
-                output_type, output_attr = cofs_model(src, layout, tgt)
+                output_type, output_attr = cofs_model(src, layout, tgt, seq_num, last_seq_num)
 
                 # for param in cofs_model.named_parameters():
                 #     print(param)
@@ -117,14 +133,23 @@ if __name__ == '__main__':
                 output_type_debug = torch.argmax(output_type, dim=2)
                 gt_data_class = ground_truth[:, j]
                 ## 类别损失计算
-                loss_type = dmll(output_type, gt_data_class.unsqueeze(-1).unsqueeze(-1), num_classes=class_num)
+                #loss_type = dmll(output_type, gt_data_class.unsqueeze(-1).unsqueeze(-1), num_classes=class_num)
+                loss_type = class_type_loss_cross_nll(output_type.squeeze(1), gt_data_class)
                 ## 其他属性生成
-                loss_attr = dmll(output_attr, ground_truth[:, j + 1: j + attr_num].unsqueeze(-1))
-                loss_attr_sum = torch.sum(loss_attr, dim=-1)
+                #loss_attr = dmll(output_attr, ground_truth[:, j + 1: j + attr_num].unsqueeze(-1))
+                loss_attr = property_loss_single(output_attr.squeeze(), ground_truth[:, j + 1: j + attr_num])
+                loss_attr_sum = torch.sum(loss_attr, dim=1)
+                loss_translation = torch.sum(loss_attr[:, :3], dim=-1)
+                loss_size = torch.sum(loss_attr[:, 3:6], dim=-1)
+                loss_rotation = torch.sum(loss_attr[:, 6:], dim=-1)
 
                 # total loss
-                loss_per_batch = loss_type.squeeze() + loss_attr_sum
+                loss_per_batch = loss_type + loss_attr_sum
                 loss = torch.sum(loss_per_batch) / batch_size
+                loss_translation = torch.sum(loss_translation) / batch_size
+                loss_size = torch.sum(loss_size) / batch_size
+                loss_rotation = torch.sum(loss_rotation) / batch_size
+                loss_type = torch.sum(loss_type) / batch_size
 
                 # 清除梯度
                 optimizer.zero_grad()
@@ -140,9 +165,20 @@ if __name__ == '__main__':
                 tgt = tmp.clone()
                 tgt.requires_grad = True
 
+                # set last_seq_num
+                for i in range(batch_size):
+                    if output_type_debug[i, 0] != class_num + 2 - 1:
+                        last_seq_num[i] += 1
+
                 # print per token
-                print(f"token: {int(j / 8) + 1}, Loss: {loss.item()}")
-                print("Type: ", end="")
+                print(f"token: {int(j / 8) + 1}, total loss: {loss.item()}, type loss: {loss_type.item()}, translation loss: {loss_translation.item()}, size loss: {loss_size.item()}, rotation loss: {loss_rotation.item()}")
+
+                print("Target type: ", end="")
+                for type in gt_data_class.to(int):
+                    print(type.item(), end=" ")
+                print()
+
+                print("Predict type: ", end="")
                 for type in output_type_debug:
                     print(type.item(), end=" ")
                 print()

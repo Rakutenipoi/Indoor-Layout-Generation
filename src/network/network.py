@@ -24,7 +24,7 @@ class cofs_network(nn.Module):
         self.max_sequence_length = config['network']['max_sequence_length']
         self.attributes_num = config['data']['attributes_num']
         self.object_max_num = config['data']['object_max_num']
-        self.class_num = config['data']['class_num'] + 1 # 需要预留一个额外的类别用于标记起始与结束
+        self.class_num = config['data']['class_num'] + 2 # 需要预留两个额外的类别用于标记起始与结束
         self.batch_size = config['training']['batch_size']
 
         # 用max_sequence_length替代sequence_length
@@ -60,7 +60,7 @@ class cofs_network(nn.Module):
             config['boundary_encoder']['name'],
             config['boundary_encoder']['freeze_bn'],
             config['boundary_encoder']['input_channels'],
-            config['boundary_encoder']['feature_size'],
+            self.dimensions,
         )
 
         self.decoder_to_output_attr = nn.Linear((self.max_sequence_length + 1) * self.dimensions, (self.attributes_num - 1) * self.dimensions)
@@ -68,10 +68,27 @@ class cofs_network(nn.Module):
 
         self.sampler = Sampler(self.dimensions, self.class_num, config['network']['sampler'])
 
-    def forward(self, sequence, layout_image, last_sequence):
+    def forward(self, sequence, layout_image, last_sequence, seq_length, last_seq_length):
+        for batch in range(self.batch_size):
+            seq_length[batch, 0] = min(seq_length[batch, 0], self.max_sequence_length / self.attributes_num)
+
         # Boundary Encoder
         layout_feature = self.boundary_encoder(layout_image.unsqueeze(1).squeeze(-1))
         layout_feature = layout_feature.unsqueeze(1)
+
+        # 根据seq_length创建尺寸为(batch_size, self.max_sequence_legnth)的mask
+        mask = torch.zeros((self.batch_size, self.max_sequence_length)).to(torch.device(device))
+        for batch in range(self.batch_size):
+            for token in range(self.attributes_num * seq_length[batch, 0]):
+                mask[batch, token] = 1.0
+        mask = mask.unsqueeze(-1)
+
+        # 根据last_seq_length创建尺寸为(batch_size, self.max_sequence_legnth)的last_mask
+        last_mask = torch.zeros((self.batch_size, self.max_sequence_length)).to(torch.device(device))
+        for batch in range(self.batch_size):
+            for token in range(self.attributes_num * last_seq_length[batch, 0]):
+                last_mask[batch, token] = 1.0
+        last_mask = last_mask.unsqueeze(-1)
 
         # Positional Encoding
         relative_position = self.relative_position_encoding(sequence)
@@ -83,25 +100,48 @@ class cofs_network(nn.Module):
         last_sequence = self.embedding(last_sequence)
 
         # Input Blend & Concatenate
+        ## sequence
         sequence = sequence + relative_position + object_index
-        sequence = torch.concat((layout_feature, sequence), dim=1)
-        sequence = torch.concat((torch.zeros((self.batch_size, 1, self.dimensions)).to(torch.device(device)), sequence), dim=1)
-        eos = torch.zeros((self.batch_size, 1, self.dimensions)).to(torch.device(device))
-        eos[:, :, 0] = 22.0
-        sequence = torch.concat((sequence, eos), dim=1)
+        sequence = sequence * mask
+
+        sos = torch.full((self.batch_size, 1), self.class_num - 2).to(torch.device(device))
+        eos = torch.full((self.batch_size, 1), self.class_num - 1).to(torch.device(device))
+        empty_token = torch.zeros((self.batch_size, 1, self.dimensions)).to(torch.device(device))
+        sos = self.embedding(sos)
+        eos = self.embedding(eos)
+
+        sequence = torch.concat((sos, layout_feature, sequence, empty_token), dim=1)
+        tmp_sequence = sequence.clone()
+        tmp_sequence[:, seq_length * self.attributes_num + 2, :] = eos
+        sequence = tmp_sequence.clone()
+        ## last_sequence
         last_sequence = last_sequence + absolute_position
-        last_sequence = torch.concat((torch.zeros((self.batch_size, 1, self.dimensions)).to(torch.device(device)), last_sequence), dim=1)
+        last_sequence = last_sequence * last_mask
+        last_sequence = torch.concat((sos, last_sequence), dim=1)
 
         # Encoders Process
         encoder_output = sequence
+        src_mask = torch.zeros((self.batch_size, 1, self.max_sequence_length + 3)).to(torch.device(device))
+        for batch in range(self.batch_size):
+            src_mask_length = 3 + self.attributes_num * seq_length[batch, 0]
+            src_mask[batch, :, : src_mask_length] = 1
+        src_mask = src_mask.unsqueeze(1)
         for encoder_layer in self.condition_encoder:
-            encoder_output = encoder_layer(encoder_output, None)
+            encoder_output = encoder_layer(encoder_output, src_mask)
 
         # Decoders Process
         decoder_output = last_sequence
-        tgt_mask = torch.tril(torch.ones((self.max_sequence_length + 1, self.max_sequence_length + 1))).to(torch.device(device))
+        tgt_mask = torch.zeros((self.batch_size, self.max_sequence_length + 1, self.max_sequence_length + 1)).to(torch.device(device))
+        cross_mask = torch.zeros((self.batch_size, self.max_sequence_length + 1, self.max_sequence_length + 3)).to(torch.device(device))
+        for batch in range(self.batch_size):
+            tgt_mask_length = 1 + self.attributes_num * last_seq_length[batch, 0]
+            src_mask_length = 3 + self.attributes_num * seq_length[batch, 0]
+            tgt_mask[batch, : tgt_mask_length, : tgt_mask_length] = torch.tril(torch.ones((tgt_mask_length, tgt_mask_length))).to(torch.device(device))
+            cross_mask[batch, : , : src_mask_length] = 1
+        tgt_mask = tgt_mask.unsqueeze(1)
+        cross_mask = cross_mask.unsqueeze(1)
         for decoder_layer in self.generative_decoder:
-            decoder_output = decoder_layer(decoder_output, encoder_output, None, tgt_mask)
+            decoder_output = decoder_layer(decoder_output, encoder_output, cross_mask, tgt_mask)
 
         # 此时的decoder_output的尺寸为[batch_size, sequence_size + 1, dimension_size]
         ## 我们需要将这个尺寸转化为[batch_size, attr_size, dimension_size]

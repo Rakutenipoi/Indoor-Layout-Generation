@@ -4,6 +4,7 @@ import random
 import numpy as np
 from .read_dataset import *
 from src.utils.yaml_reader import *
+#from dataset import *
 import itertools
 import torch
 from torch.utils.data import Dataset
@@ -82,7 +83,11 @@ def process_data(config):
     max_sequence_length = config['network']['max_sequence_length']
     batch_size = config['training']['batch_size']
     object_max_num = config['data']['object_max_num']
+    class_num = config['data']['class_num']
     permutation_num = config['data']['permutation_num']
+    bounds_translations = [-2.762500499999998, 0.045, -2.7527500000000007, 2.778441746198965, 3.6248395981292725, 2.818542771063899]
+    bounds_sizes = [0.0399828836528625, 0.020000020334800084, 0.012771999999999964, 2.8682, 1.7700649999999998, 1.698315]
+    bounds_angles = [-3.1416, 3.1416]
 
     data_folder = read_folder(config['data']['dataset_directory'])
     rooms_dir = []
@@ -97,31 +102,33 @@ def process_data(config):
     for room_dir in rooms_dir:
         furnitures = []
         room = np.load(room_dir[0], allow_pickle=True)
-        class_labels = room['class_labels']
+        class_labels = room['class_labels'][:, :class_num]
         translations = room['translations']
         sizes = room['sizes']
         angles = room['angles']
         layout = room['room_layout']
 
-        # sizes_min = np.min(sizes, axis=0)
-        # sizes_max = np.max(sizes, axis=0)
-        angles_min = -math.pi
-        angles_max = math.pi
-        translations_min = np.min(translations, axis=0)
-        translations_max = np.max(translations, axis=0)
-
         for i in range(class_labels.shape[0]):
             furniture = []
+
+            if class_labels[i].sum() == 0:
+                continue
+
             # 读取(1, 23)的nparray中具有最大值的元素索引
-            class_label = np.argmax(class_labels[i]) + 1 # 设定0为特殊类
+            class_label = np.argmax(class_labels[i])
             translation = translations[i]
             size = sizes[i]
             angle = angles[i]
 
-            # 归一化至[-1, 1]
-            #size = 2 * (size - sizes_min) / (sizes_max - sizes_min) - 1
-            angle = 2 * (angle - angles_min) / (angles_max - angles_min) - 1
-            translation = 2 * (translation - translations_min) / (translations_max - translations_min) - 1
+            # 数据归一化
+            for j in range(3):
+                translation[j] = (translation[j] - bounds_translations[j]) / (bounds_translations[j + 3] - bounds_translations[j])
+                size[j] = (size[j] - bounds_sizes[j]) / (bounds_sizes[j + 3] - bounds_sizes[j])
+            angle[0] = (angle[0] - bounds_angles[0]) / (bounds_angles[1] - bounds_angles[0])
+            if angle[0] < 0 or translation[0] < 0 or translation[1] < 0 or translation[2] < 0 or size[0] < 0 or size[1] < 0 or size[2] < 0:
+                continue
+            elif angle[0] > 1 or translation[0] > 1 or translation[1] > 1 or translation[2] > 1 or size[0] > 1 or size[1] > 1 or size[2] > 1:
+                continue
 
             furniture.append(class_label)
             furniture.append(translation[0])
@@ -133,11 +140,13 @@ def process_data(config):
             furniture.append(angle[0])
             furnitures.append(furniture)
 
-        # 计算排列组合
-        # permutations = list(itertools.permutations(range(len(furnitures))))
-        # random.shuffle(permutations)
-        # permutations = permutations[:permutation_num]
         furniture_num = len(furnitures)
+        if furniture_num <= 1:
+            continue
+        elif furniture_num > object_max_num:
+            furnitures = furnitures[:object_max_num]
+        # 对furnitures进行shuffle
+        random.shuffle(furnitures)
         # 根据object_max_num进行填充，得到(object_max_num, 8)的nparray
         while len(furnitures) < object_max_num:
             furnitures.append([0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -245,7 +254,7 @@ if __name__ == "__main__":
     # rooms = permute_furniture(rooms[:10])
 
     data_path = '../../data/processed/bedrooms/'
-    usage = 'full'
+    usage = 'simple_shuffled'
     file_name = f'bedrooms_{usage}_sequence'
     layout_name = f'bedrooms_{usage}_layout'
     data_name = f'bedrooms_{usage}_data'

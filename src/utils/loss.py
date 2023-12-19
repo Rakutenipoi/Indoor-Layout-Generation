@@ -32,8 +32,9 @@ def class_type_loss_cross_nll(predict, truth):
     truth = truth.to(int)
     m = nn.LogSoftmax(dim=1)
     nll_loss = nn.NLLLoss()
+    m_predict = m(predict)
 
-    output = nll_loss(m(predict), truth)
+    output = nll_loss(m_predict, truth)
 
     return output
 
@@ -59,11 +60,20 @@ def property_loss_distribution(predicted_property, ground_truth):
     return nll_loss
 
 def property_loss_single(predicted_property, ground_truth):
-    predict = predicted_property.squeeze()
+    predict = predicted_property
     truth = ground_truth
 
-    mse_loss = nn.MSELoss()
+    mse_loss = nn.MSELoss(reduce=False, size_average=False)
     output = mse_loss(predict, truth)
+
+    return output
+
+# pridict尺寸为(batch_size, 1, class_num)，truth为(batch_size,)，通过交叉熵计算每一个batch上的损失
+def type_loss_cross_entropy(predict, truth):
+    truth = truth.to(int)
+    #loss_fn = nn.CrossEntropyLoss(reduce=False, size_average=False)
+
+    output = F.nll_loss(torch.log(predict), truth)
 
     return output
 
@@ -155,8 +165,6 @@ def dmll(pred, target, log_scale_min=-7.0, num_classes=256):
 
     log_probs = log_probs + F.log_softmax(logit_probs, -1)
     return -log_sum_exp(log_probs)
-
-
 
 
 

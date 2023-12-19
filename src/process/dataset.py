@@ -21,10 +21,7 @@ class COFSDataset(Dataset):
         return sample, index, length
 
 
-        # order = permute(int(length[0]))
-        # random.shuffle(order)
-        # order_len = min(self.permutation_num, len(order))
-        # order = order[:order_len]
+
 
 
 

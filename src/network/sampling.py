@@ -16,6 +16,7 @@ class Sampler(nn.Module):
             nn.Linear(self.hidden_input_dimension, self.hidden_output_dimension),
             nn.LeakyReLU(),
             nn.Linear(self.hidden_output_dimension, self.output_dimension),
+            nn.ReLU(),
         )
 
         self.discrete_layer = nn.Sequential(
