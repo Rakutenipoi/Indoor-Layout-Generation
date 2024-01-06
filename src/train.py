@@ -49,9 +49,10 @@ checkpoint_freq = training_config['checkpoint_frequency']
 
 # 训练数据读取
 data_path = 'data/processed/bedrooms/'
-full_data = np.load(os.path.join(data_path, 'bedrooms_simple_data.npy'), allow_pickle=True)
-layouts = np.load(os.path.join(data_path, 'bedrooms_simple_layout.npy'))
-sequences = np.load(os.path.join(data_path, 'bedrooms_simple_sequence.npy'))
+data_type = 'full_shuffled'
+full_data = np.load(os.path.join(data_path, f'bedrooms_{data_type}_data.npy'), allow_pickle=True)
+layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
+sequences = np.load(os.path.join(data_path, f'bedrooms_{data_type}_sequence.npy'))
 
 # 提取数据
 sequence_index, layout_index, sequences_num = extract_data(full_data)
@@ -71,6 +72,15 @@ dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True)
 # 创建网络模型
 cofs_model = cofs_network(config).to(device)
 
+# 从上次训练的模型参数开始训练
+model_param_path = 'model/full_shuffled_data_1'
+# 读取该路径下文件的数量
+model_param_num = len(os.listdir(model_param_path))
+model_epoch_index = model_param_num
+model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
+model_param = torch.load(os.path.join(model_param_path, model_param_name))
+cofs_model.load_state_dict(model_param)
+
 # 优化器
 optimizer = torch.optim.Adam(cofs_model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-9)
 
@@ -80,7 +90,7 @@ if __name__ == '__main__':
 
     # 迭代训练
     epoch_time_start = time.time()
-    for epoch in range(epoches):
+    for epoch in range(model_epoch_index + 1, epoches):
         batch_idx = 0
         epoch_time = time.time()
         batch_time_start = time.time()
@@ -107,6 +117,7 @@ if __name__ == '__main__':
             layout_idx = layout_idx.numpy().astype(int)
             for i in range(batch_size):
                 layout.append(layouts[layout_idx[i, 0]])
+            layout = np.array(layout)
             layout = torch.tensor(layout, dtype=torch.float32).to(device)
             # 根据seq_num生成排列组合
             # permutations = []
@@ -123,6 +134,18 @@ if __name__ == '__main__':
             last_seq_num = np.zeros_like(seq_num)
 
             for j in range(0, max_sequence_length, attr_num):
+                if src[:, j].sum() == 0:
+                    break
+
+                # 计算每个batch中类别为0的个数
+                zero_class_num = 0
+                for i in range(batch_size):
+                    if src[i, j] == 0:
+                        zero_class_num += 1
+                # 如果类别为0的个数大于等于batch_size的一半，则认为这个batch中的所有序列都已经结束
+                if zero_class_num >= batch_size // 2:
+                    break
+
                 # 前向传播
                 output_type, output_attr = cofs_model(src, layout, tgt, seq_num, last_seq_num)
 

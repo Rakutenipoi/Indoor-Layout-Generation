@@ -26,6 +26,8 @@ class cofs_network(nn.Module):
         self.object_max_num = config['data']['object_max_num']
         self.class_num = config['data']['class_num'] + 2 # 需要预留两个额外的类别用于标记起始与结束
         self.batch_size = config['training']['batch_size']
+        self.start_token = config['network']['start_token']
+        self.end_token = config['network']['end_token']
 
         # 用max_sequence_length替代sequence_length
         self.embedding = Embedding(
@@ -104,8 +106,8 @@ class cofs_network(nn.Module):
         sequence = sequence + relative_position + object_index
         sequence = sequence * mask
 
-        sos = torch.full((self.batch_size, 1), self.class_num - 2).to(torch.device(device))
-        eos = torch.full((self.batch_size, 1), self.class_num - 1).to(torch.device(device))
+        sos = torch.full((self.batch_size, 1), self.start_token).to(torch.device(device))
+        eos = torch.full((self.batch_size, 1), self.end_token).to(torch.device(device))
         empty_token = torch.zeros((self.batch_size, 1, self.dimensions)).to(torch.device(device))
         sos = self.embedding(sos)
         eos = self.embedding(eos)

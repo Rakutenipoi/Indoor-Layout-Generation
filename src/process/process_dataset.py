@@ -115,7 +115,7 @@ def process_data(config):
                 continue
 
             # 读取(1, 23)的nparray中具有最大值的元素索引
-            class_label = np.argmax(class_labels[i])
+            class_label = np.argmax(class_labels[i]) + 1
             translation = translations[i]
             size = sizes[i]
             angle = angles[i]
@@ -254,7 +254,7 @@ if __name__ == "__main__":
     # rooms = permute_furniture(rooms[:10])
 
     data_path = '../../data/processed/bedrooms/'
-    usage = 'simple_shuffled'
+    usage = 'full_shuffled'
     file_name = f'bedrooms_{usage}_sequence'
     layout_name = f'bedrooms_{usage}_layout'
     data_name = f'bedrooms_{usage}_data'

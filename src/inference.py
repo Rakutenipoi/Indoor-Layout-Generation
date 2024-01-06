@@ -4,6 +4,7 @@ import numpy as np
 
 from process.dataset import *
 from network.network import cofs_network
+from utils.draw import *
 import time
 
 # 系统设置
@@ -35,13 +36,14 @@ max_sequence_length = config['network']['max_sequence_length']
 
 # 训练数据读取
 data_path = '../data/processed/bedrooms/'
-layouts = np.load(os.path.join(data_path, 'bedrooms_simple_layout.npy'))
+data_type = 'full_shuffled'
+layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
 
 # 创建网络模型
 cofs_model = cofs_network(config).to(device)
 
 # 读取模型参数
-model_param_path = '../model'
+model_param_path = '../model/full_shuffled_data_1'
 model_epoch_index = 10
 model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
 model_param = torch.load(os.path.join(model_param_path, model_param_name))
@@ -52,7 +54,7 @@ if __name__ == '__main__':
     cofs_model.eval()
 
     # 推理次数
-    inference_num = 3
+    inference_num = 1
 
     # 推理结果
     predicts = []
@@ -60,10 +62,12 @@ if __name__ == '__main__':
     # 根据inference_num从layouts中随机选取布局
     layout_size = layouts.shape[0]
     random_index = np.random.randint(0, layout_size, inference_num)
+    inference_layouts = []
 
     for i in range(inference_num):
         # src序列
         layout = layouts[random_index[i]]
+        inference_layouts.append(layout)
         layout = torch.tensor(layout, dtype=torch.float32)
         layout = layout.to(device)
         layout = layout.unsqueeze(0)
@@ -91,4 +95,27 @@ if __name__ == '__main__':
         predicts.append(predict)
         layouts_for_inference.append(layouts[random_index[i]])
 
-    print(predicts)
+    # 推理结果整理
+    predicts = np.array(predicts)
+    sorted_seq = []
+    for predict in predicts:
+        seq = []
+        # predict_type记录已经出现过的家具类型
+        predict_type = []
+        for i in range(predict.shape[0]):
+            # 如果家具类型已经出现过，则将其属性全部置为0
+            if predict[i, 0] in predict_type or predict[i, 0] == 0:
+                continue
+            else:
+                predict_type.append(predict[i, 0])
+                seq.append(predict[i, :])
+        seq = np.array(seq)
+        sorted_seq.append(seq)
+
+    # 打印推理结果
+    for predict in sorted_seq:
+        print(predict)
+        print('---------------------------')
+
+    # 调用可视化函数
+    visiualize(inference_layouts[0], sorted_seq[0])
