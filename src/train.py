@@ -128,23 +128,53 @@ if __name__ == '__main__':
             #     order = order[:order_len]
             #     permutations.append(order)
             # 设置requires_grad
-            src.requires_grad = True
+            src.requires_grad = False
             layout.requires_grad = True
             tgt.requires_grad = True
             last_seq_num = np.zeros_like(seq_num)
 
-            for j in range(0, max_sequence_length, attr_num):
-                if src[:, j].sum() == 0:
-                    break
+            # src随机mask
+            mask = torch.ones_like(src)
+            for i in range(batch_size):
+                num = seq_num[i, 0]
+                if num < 2:
+                    continue
+                else:
+                    # 随机mask的数量为1到min(2, num)之间
+                    mask_min_num = 1
+                    mask_max_num = 1
+                    mask_rand_num = np.random.randint(mask_min_num, min(mask_max_num, num) + 1, 1)
+                    # 随机mask的位置
+                    mask_rand_pos = np.random.randint(0, num - 1, mask_rand_num)
+                    # mask
+                    for pos in mask_rand_pos:
+                        mask[i, pos * attr_num: (pos + 1) * attr_num] = 0
+            # mask与src对应位置相乘
+            src = src * mask
 
-                # 计算每个batch中类别为0的个数
-                zero_class_num = 0
-                for i in range(batch_size):
-                    if src[i, j] == 0:
-                        zero_class_num += 1
-                # 如果类别为0的个数大于等于batch_size的一半，则认为这个batch中的所有序列都已经结束
-                if zero_class_num >= batch_size // 2:
-                    break
+            # 计算seq_len的平均值
+            seq_len_sum = 0
+            for i in range(batch_size):
+                seq_len_sum += seq_num[i, 0]
+            seq_len_mean = seq_len_sum / batch_size
+            # 向上取整
+            seq_len_mean = int(np.ceil(seq_len_mean))
+
+            # 设置requires_grad为True
+            src.requires_grad = True
+
+            for j in range(0, seq_len_mean * attr_num, attr_num):
+                # if src[:, j].sum() == 0:
+                #     break
+
+                # # 计算每个batch中类别为0的个数
+                # zero_class_num = 0
+                # for i in range(batch_size):
+                #     if src[i, j] == 0:
+                #         zero_class_num += 1
+                # # 如果类别为0的个数大于等于batch_size的一半，则认为这个batch中的所有序列都已经结束
+                # if zero_class_num >= batch_size // 2:
+                #     break
 
                 # 前向传播
                 output_type, output_attr = cofs_model(src, layout, tgt, seq_num, last_seq_num)
@@ -230,7 +260,7 @@ if __name__ == '__main__':
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数
-            torch.save(cofs_model.state_dict(), f'model/bedrooms_model_{epoch + 1}.pth')
+            torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epoch + 1}.pth')
             print(f"Model saved at Epoch: {epoch + 1}")
 
     # 保存训练参数
