@@ -16,6 +16,7 @@ from process.dataset import *
 # 系统设置
 sys.setrecursionlimit(100000)
 sys.stdout.flush = True
+os.chdir(sys.path[0])
 
 # pytorch设置
 torch.set_printoptions(profile="full")
