@@ -74,9 +74,16 @@ cofs_model = cofs_network(config).to(device)
 
 # 从上次训练的模型参数开始训练
 model_param_path = 'model/full_shuffled_data_1'
-# 读取该路径下文件的数量
-model_param_num = len(os.listdir(model_param_path))
-model_epoch_index = model_param_num
+# 读取该路径的文件
+model_param_files = os.listdir(model_param_path)
+# 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
+model_epoch_index = 0
+for file in model_param_files:
+    if file.startswith('bedrooms_model_'):
+        file_epoch_index = int(file.split('.')[0].split('_')[-1])
+        if file_epoch_index > model_epoch_index:
+            model_epoch_index = file_epoch_index
+# 读取模型参数
 model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
 model_param = torch.load(os.path.join(model_param_path, model_param_name))
 cofs_model.load_state_dict(model_param)
