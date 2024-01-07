@@ -16,7 +16,7 @@ from process.dataset import *
 # 系统设置
 sys.setrecursionlimit(100000)
 sys.stdout.flush = True
-os.chdir(sys.path[0])
+#os.chdir(sys.path[0])
 
 # pytorch设置
 torch.set_printoptions(profile="full")
@@ -257,7 +257,7 @@ if __name__ == '__main__':
             print('--------------------------------------------------------------------------------')
 
         # print per epoch
-        print(f"Epoch: {epoch + 1} / {epoches}")
+        print(f"Epoch: {epoch} / {epoches}")
         single_epoch_time = time.time() - epoch_time
         single_epoch_time = "{:02d}:{:02d}:{:02d}".format(int(single_epoch_time // 3600), int((single_epoch_time % 3600) // 60), int(single_epoch_time % 60))
         total_epoch_time = time.time() - epoch_time_start
@@ -268,8 +268,8 @@ if __name__ == '__main__':
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数
-            torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epoch + 1}.pth')
-            print(f"Model saved at Epoch: {epoch + 1}")
+            torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epoch}.pth')
+            print(f"Model saved at Epoch: {epoch}")
 
     # 保存训练参数
     torch.save(cofs_model.state_dict(), 'model/bedrooms_model.pth')
