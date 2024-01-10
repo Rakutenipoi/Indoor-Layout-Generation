@@ -1,52 +1,26 @@
 class_order:
-  nightstand: 0
-  double_bed: 1
-  wardrobe: 2
-  pendant_lamp: 3
-  ceiling_lamp: 4
-  tv_stand: 5
-  chair: 6
-  single_bed: 7
-  dressing_table: 8
-  cabinet: 9
-  table: 10
-  desk: 11
-  stool: 12
-  shelf: 13
-  kids_bed: 14
-  bookshelf: 15
-  children_cabinet: 16
-  dressing_chair: 17
-  armchair: 18
-  sofa: 19
-  coffee_table: 20
+  0: 'nightstand'
+  1: 'double_bed'
+  2: 'wardrobe'
+  3: 'pendant_lamp'
+  4: 'ceiling_lamp'
+  5: 'tv_stand'
+  6: 'chair'
+  7: 'single_bed'
+  8: 'dressing_table'
+  9: 'cabinet'
+  10: 'table'
+  11: 'desk'
+  12: 'stool'
+  13: 'shelf'
+  14: 'kids_bed'
+  15: 'bookshelf'
+  16: 'children_cabinet'
+  17: 'dressing_chair'
+  18: 'armchair'
+  19: 'sofa'
+  20: 'coffee_table'
 
-output_class:
-    bed: 1
-    cabinet: 2
-    lighting: 3
 
-class_mapping:
-  nightstand: cabinet
-  double_bed: bed
-  wardrobe: cabinet
-  pendant_lamp: lighting
-  ceiling_lamp: lighting
-  tv_stand: table
-  chair: chair
-  single_bed: bed
-  dressing_table: table
-  cabinet: cabinet
-  table: table
-  desk: table
-  stool: chair
-  shelf: cabinet
-  kids_bed: bed
-  bookshelf: cabinet
-  children_cabinet: cabinet
-  dressing_chair: chair
-  armchair: chair
-  sofa: chair
-  coffee_table: table
 
 

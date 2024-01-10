@@ -44,7 +44,7 @@ cofs_model = cofs_network(config).to(device)
 
 # 读取模型参数
 model_param_path = '../model/full_shuffled_data_1'
-model_epoch_index = 10
+model_epoch_index = 195
 model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
 model_param = torch.load(os.path.join(model_param_path, model_param_name))
 cofs_model.load_state_dict(model_param)
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     cofs_model.eval()
 
     # 推理次数
-    inference_num = 1
+    inference_num = 100
 
     # 推理结果
     predicts = []
@@ -118,4 +118,5 @@ if __name__ == '__main__':
         print('---------------------------')
 
     # 调用可视化函数
-    visiualize(inference_layouts[0], sorted_seq[0])
+    for i in range(inference_num):
+        visiualize(layouts_for_inference[i], sorted_seq[i])

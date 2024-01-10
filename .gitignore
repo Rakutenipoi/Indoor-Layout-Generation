@@ -8,3 +8,5 @@
 *.npy
 *.zip
 *.pth
+*.jpg
+*.txt
