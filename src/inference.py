@@ -44,10 +44,19 @@ cofs_model = cofs_network(config).to(device)
 
 # 读取模型参数
 model_param_path = '../model/full_shuffled_data_1'
-model_epoch_index = 195
+# 读取该路径的文件
+model_param_files = os.listdir(model_param_path)
+# 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
+model_epoch_index = 0
+for file in model_param_files:
+    if file.startswith('bedrooms_model_'):
+        file_epoch_index = int(file.split('.')[0].split('_')[-1])
+        if file_epoch_index > model_epoch_index:
+            model_epoch_index = file_epoch_index
 model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
 model_param = torch.load(os.path.join(model_param_path, model_param_name))
 cofs_model.load_state_dict(model_param)
+print(f'load model {model_epoch_index}')
 
 if __name__ == '__main__':
     # 设置为推理模式
@@ -98,25 +107,47 @@ if __name__ == '__main__':
     # 推理结果整理
     predicts = np.array(predicts)
     sorted_seq = []
-    for predict in predicts:
+    index_seq = []
+    max_len = 2
+    for j in range(len(predicts)):
+        predict = predicts[j]
         seq = []
+        count = 0
         # predict_type记录已经出现过的家具类型
         predict_type = []
         for i in range(predict.shape[0]):
-            # 如果家具类型已经出现过，则将其属性全部置为0
             if predict[i, 0] in predict_type or predict[i, 0] == 0:
                 continue
+            elif predict[i, 0] == 2 or predict[i, 0] == 8 or predict[i, 0] == 15:
+                count += 1
+                predict_type.append(predict[i, 0])
+                seq.append(predict[i, :])
+
+        if count == 0:
+            continue
+
+        for i in range(predict.shape[0]):
+            if predict[i, 0] in predict_type or predict[i, 0] == 0:
+                continue
+            elif count > max_len:
+                break
             else:
+                count += 1
                 predict_type.append(predict[i, 0])
                 seq.append(predict[i, :])
         seq = np.array(seq)
         sorted_seq.append(seq)
+        index_seq.append(j)
 
     # 打印推理结果
     for predict in sorted_seq:
         print(predict)
         print('---------------------------')
 
+    sorted_layout = []
+    for i in range(len(index_seq)):
+        sorted_layout.append(inference_layouts[index_seq[i]])
+
     # 调用可视化函数
-    for i in range(inference_num):
-        visiualize(layouts_for_inference[i], sorted_seq[i])
+    for i in range(len(sorted_seq)):
+        visiualize(sorted_layout[i], sorted_seq[i])

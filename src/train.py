@@ -1,8 +1,6 @@
 import torch
 import numpy as np
-from torchviz import make_dot
 import sys
-import msvcrt
 import time
 from torch.utils.data import DataLoader
 
@@ -89,6 +87,9 @@ model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
 model_param = torch.load(os.path.join(model_param_path, model_param_name))
 cofs_model.load_state_dict(model_param)
 
+# 打印模型
+#print(cofs_model)
+
 # 优化器
 optimizer = torch.optim.Adam(cofs_model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-9)
 
@@ -99,6 +100,7 @@ if __name__ == '__main__':
     # 迭代训练
     epoch_time_start = time.time()
     for epoch in range(model_epoch_index + 1, epoches):
+        print(f'epoch {epoch} start')
         batch_idx = 0
         epoch_time = time.time()
         batch_time_start = time.time()
@@ -150,7 +152,7 @@ if __name__ == '__main__':
                 else:
                     # 随机mask的数量为1到min(2, num)之间
                     mask_min_num = 1
-                    mask_max_num = 1
+                    mask_max_num = 2
                     mask_rand_num = np.random.randint(mask_min_num, min(mask_max_num, num) + 1, 1)
                     # 随机mask的位置
                     mask_rand_pos = np.random.randint(0, num - 1, mask_rand_num)
@@ -203,6 +205,11 @@ if __name__ == '__main__':
                 loss_translation = torch.sum(loss_attr[:, :3], dim=-1)
                 loss_size = torch.sum(loss_attr[:, 3:6], dim=-1)
                 loss_rotation = torch.sum(loss_attr[:, 6:], dim=-1)
+
+                # 损失权重调整
+                loss_translation = loss_translation * 10
+                loss_size = loss_size * 5
+                loss_rotation = loss_rotation * 3
 
                 # total loss
                 loss_per_batch = loss_type + loss_attr_sum
@@ -263,13 +270,14 @@ if __name__ == '__main__':
         total_epoch_time = time.time() - epoch_time_start
         total_epoch_time = "{:02d}:{:02d}:{:02d}".format(int(total_epoch_time // 3600), int((total_epoch_time % 3600) // 60), int(total_epoch_time % 60))
         print(f"Time: {single_epoch_time}, total time: {total_epoch_time}")
-        print('--------------------------------------------------------------------------------')
-        print('--------------------------------------------------------------------------------')
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数
             torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epoch}.pth')
             print(f"Model saved at Epoch: {epoch}")
+
+        print('--------------------------------------------------------------------------------')
+        print('--------------------------------------------------------------------------------')
 
     # 保存训练参数
     torch.save(cofs_model.state_dict(), 'model/bedrooms_model.pth')

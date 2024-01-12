@@ -25,38 +25,55 @@ def visiualize(layout, sequence):
     bounds_angles = [-3.1416, 3.1416]
 
     # 绘制家具布局俯视图
-    size_ratio = 50
+    size_ratio = 60
     img = np.copy(layout)
     # 将img转换为三通道
     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    resize_ratio = 4
+    new_size = (resize_ratio * layout.shape[1], resize_ratio * layout.shape[0])
+    resized_img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
     furniture_type = []
     for i in range(sequence.shape[0]):
-        if sequence[i, 0] == 21:
+        if sequence[i, 0] == 22 or sequence[i, 0] == 0:
             continue
         else:
             x = l_x + int(sequence[i, 1] * width)
             z = l_z + int(sequence[i, 3] * height)
             w = int((bounds_sizes[0] + sequence[i, 4] * (bounds_sizes[3] - bounds_sizes[0])) * size_ratio)
             h = int((bounds_sizes[2] + sequence[i, 6] * (bounds_sizes[5] - bounds_sizes[2])) * size_ratio)
-            furniture_type.append((int(sequence[i, 0]), config.get(int(sequence[i, 0]))))
+            # resize尺寸
+            x = int(resize_ratio * x)
+            z = int(resize_ratio * z)
+            w = int(resize_ratio * w)
+            h = int(resize_ratio * h)
+            # 类别
+            class_type = int(sequence[i, 0]) - 1
+            furniture_type.append((class_type, config.get(class_type)))
             # 矩形参数
             angle = int((sequence[i, 7] * (bounds_angles[1] - bounds_angles[0]) + bounds_angles[0]) / np.pi * 180)
             center = (x, z)
             pts = np.array([[x - w / 2, z - h / 2], [x + w / 2, z - h / 2], [x + w / 2, z + h / 2], [x - w / 2, z + h / 2]], np.int32)
             rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1)
             rotated_pts = cv2.transform(np.array([pts]), rotation_matrix)[0]
-            cv2.polylines(img, [rotated_pts], isClosed=True, color=(0, 0, 255), thickness=1)
-            cv2.putText(img, str(int(sequence[i, 0])), (x, z), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-    resize_ratio = 4
-    new_size = (resize_ratio * layout.shape[1], resize_ratio * layout.shape[0])
-    resized_img = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
-    furniture_img = np.zeros((new_size[0], new_size[1] + 200, 3), np.uint8)
+            if class_type == 4 or class_type == 3:
+                cv2.polylines(resized_img, [rotated_pts], isClosed=True, color=(255, 0, 0), thickness=1)
+                cv2.putText(resized_img, str(class_type), (x, z), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+            elif class_type == 6 or class_type == 12 or class_type == 17 or class_type == 18:
+                cv2.polylines(resized_img, [rotated_pts], isClosed=True, color=(255, 0, 255), thickness=1)
+                cv2.putText(resized_img, str(class_type), (x, z), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
+            elif class_type == 1 or class_type == 7 or class_type == 14:
+                cv2.polylines(resized_img, [rotated_pts], isClosed=True, color=(125, 0, 125), thickness=1)
+                cv2.putText(resized_img, str(class_type), (x, z), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (125, 0, 125), 1)
+            else:
+                cv2.polylines(resized_img, [rotated_pts], isClosed=True, color=(0, 0, 255), thickness=1)
+                cv2.putText(resized_img, str(class_type), (x, z), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+    furniture_img = np.zeros((new_size[0], new_size[1] + 400, 3), np.uint8)
     # 将resized_img复制到furniture_img中
     furniture_img[0:new_size[0], 0:new_size[1]] = resized_img
     type_put_pos = (int(resize_ratio * (l_x + width + 10)), int(resize_ratio * (l_z + height * 3 / 4)))
     for i in range(len(furniture_type)):
         text = str(furniture_type[i][0]) + ': ' + furniture_type[i][1]
-        cv2.putText(furniture_img, text, type_put_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        cv2.putText(furniture_img, text, type_put_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         type_put_pos = (type_put_pos[0], type_put_pos[1] + 40)
     cv2.imshow('furnitures', furniture_img)
 
