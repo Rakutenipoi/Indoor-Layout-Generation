@@ -1,11 +1,15 @@
 data:
     dataset_directory: "D:\\Study\\Projects\\DeepLearning\\UrbanGeneration\\Indoor\\ATISS Remake\\data\\raw"
+    processed_directory: "D:\\Study\\Projects\\DeepLearning\\UrbanGeneration\\Indoor\\ATISS Remake\\data\\dataset"
     annotation_file: ""
     room_layout_size: 256
     attributes_num: 8
     object_max_num: 15
     class_num: 21
     permutation_num: 100
+    bounds_translations: [-2.762500499999998, 0.045, -2.7527500000000007, 2.778441746198965, 3.6248395981292725, 2.818542771063899]
+    bounds_sizes: [0.0399828836528625, 0.020000020334800084, 0.012771999999999964, 2.8682, 1.7700649999999998, 1.698315]
+    bounds_angles: [-3.1416, 3.1416]
 
 network:
     n_layers: 8
@@ -30,5 +34,5 @@ training:
     dropout: 0.3
     batch_size: 32
     epoches: 1000
-    checkpoint_frequency: 1
+    checkpoint_frequency: 10
     lr: 0.00001

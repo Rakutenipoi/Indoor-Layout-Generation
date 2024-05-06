@@ -2,7 +2,9 @@ import math
 import os.path
 import random
 import numpy as np
-from .read_dataset import *
+import pandas as pd
+import json
+from read_dataset import *
 from src.utils.yaml_reader import *
 #from dataset import *
 import itertools
@@ -85,9 +87,9 @@ def process_data(config):
     object_max_num = config['data']['object_max_num']
     class_num = config['data']['class_num']
     permutation_num = config['data']['permutation_num']
-    bounds_translations = [-2.762500499999998, 0.045, -2.7527500000000007, 2.778441746198965, 3.6248395981292725, 2.818542771063899]
-    bounds_sizes = [0.0399828836528625, 0.020000020334800084, 0.012771999999999964, 2.8682, 1.7700649999999998, 1.698315]
-    bounds_angles = [-3.1416, 3.1416]
+    bounds_translations = config['data']['bounds_translations']
+    bounds_sizes = config['data']['bounds_sizes']
+    bounds_angles = config['data']['bounds_angles']
 
     data_folder = read_folder(config['data']['dataset_directory'])
     rooms_dir = []
@@ -99,6 +101,8 @@ def process_data(config):
     index = []
     idx_layout = 0
     idx_sequence = 0
+    scene_dict = []
+
     for room_dir in rooms_dir:
         furnitures = []
         room = np.load(room_dir[0], allow_pickle=True)
@@ -163,7 +167,7 @@ def process_data(config):
     index = np.array(index, dtype=object)
     #rooms = np.expand_dims(rooms, axis=1)
 
-    return rooms, layouts, index
+    return rooms, layouts, index, scene_dict
 
 # 返回所有可能的家具排序
 def permute_furniture(rooms):
@@ -250,7 +254,7 @@ if __name__ == "__main__":
     config_path = '../../config'
     config_name = 'bedrooms_config.yaml'
     config = read_file_in_path(config_path, config_name)
-    rooms, layouts, index = process_data(config)
+    rooms, layouts, index, scene_dict = process_data(config)
     # rooms = permute_furniture(rooms[:10])
 
     data_path = '../../data/processed/bedrooms/'
@@ -258,11 +262,17 @@ if __name__ == "__main__":
     file_name = f'bedrooms_{usage}_sequence'
     layout_name = f'bedrooms_{usage}_layout'
     data_name = f'bedrooms_{usage}_data'
-    os.makedirs(os.path.dirname(data_path), exist_ok=True)
-    np.save(os.path.join(data_path, file_name), rooms)
-    np.save(os.path.join(data_path, layout_name), layouts)
-    np.save(os.path.join(data_path, data_name), index)
+    # os.makedirs(os.path.dirname(data_path), exist_ok=True)
+    # np.save(os.path.join(data_path, file_name), rooms)
+    # np.save(os.path.join(data_path, layout_name), layouts)
+    # np.save(os.path.join(data_path, data_name), index)
 
     #src_data, layout_image = extract_data(rooms)
+
+    # 将scene_dict保存为json文件
+    scene_dict_name = 'dataset'
+    scene_dict_path = os.path.join(data_path, scene_dict_name)
+    with open(scene_dict_path, 'w') as file:
+        json.dump(scene_dict, file)
 
     print("done")

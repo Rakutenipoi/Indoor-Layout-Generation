@@ -63,7 +63,7 @@ if __name__ == '__main__':
     cofs_model.eval()
 
     # 推理次数
-    inference_num = 100
+    inference_num = 50
 
     # 推理结果
     predicts = []
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     predicts = np.array(predicts)
     sorted_seq = []
     index_seq = []
-    max_len = 2
+    max_len = 3
     for j in range(len(predicts)):
         predict = predicts[j]
         seq = []
