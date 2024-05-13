@@ -42,6 +42,7 @@ def npz2json(path):
         size = sizes[i]
         angle = angles[i]
 
+
         # 数据归一化
         for j in range(3):
             translation[j] = (translation[j] - bounds_translations[j]) / (
@@ -91,10 +92,13 @@ if __name__ == "__main__":
                 else:
                     npz_path = file_path
                     json_objects = npz2json(file_path)
+                    room = np.load(file_path, allow_pickle=True)
+                    layout = room['room_layout']
             # 存储文件信息
             png_info.append({
                 "file_name": f"{subdir}.png",
-                "objects": json_objects
+                "objects": json_objects,
+                "layout": layout
             })
             png_data.append({
                 "file_name": f"{subdir}.png",
@@ -108,7 +112,7 @@ if __name__ == "__main__":
     #     json.dump(png_info, f)
 
     # 保存为pandas DataFrame
-    df = pd.DataFrame(png_data)
+    df = pd.DataFrame(png_info)
     df.to_pickle(os.path.join(new_folder, "metadata.pkl"))
 
     print("done")

@@ -3,6 +3,7 @@ import numpy as np
 import sys
 import time
 from torch.utils.data import DataLoader
+import tqdm
 
 from network.network import cofs_network
 from utils.yaml_reader import read_file_in_path
@@ -10,10 +11,9 @@ from utils.loss import *
 from process.read_dataset import *
 from process.process_dataset import *
 from process.dataset import *
+from utils.loss_cal import *
 
 # 系统设置
-sys.setrecursionlimit(100000)
-sys.stdout.flush = True
 #os.chdir(sys.path[0])
 
 # pytorch设置
@@ -72,20 +72,24 @@ dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True)
 cofs_model = cofs_network(config).to(device)
 
 # 从上次训练的模型参数开始训练
-model_param_path = 'model/full_shuffled_data_1'
+load_pretrain = False
+model_param_path = 'model/full_data'
 # 读取该路径的文件
-model_param_files = os.listdir(model_param_path)
-# 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
-model_epoch_index = 0
-for file in model_param_files:
-    if file.startswith('bedrooms_model_'):
-        file_epoch_index = int(file.split('.')[0].split('_')[-1])
-        if file_epoch_index > model_epoch_index:
-            model_epoch_index = file_epoch_index
-# 读取模型参数
-model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
-model_param = torch.load(os.path.join(model_param_path, model_param_name))
-cofs_model.load_state_dict(model_param)
+if (load_pretrain):
+    model_param_files = os.listdir(model_param_path)
+    # 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
+    model_epoch_index = 0
+    for file in model_param_files:
+        if file.startswith('bedrooms_model_'):
+            file_epoch_index = int(file.split('.')[0].split('_')[-1])
+            if file_epoch_index > model_epoch_index:
+                model_epoch_index = file_epoch_index
+
+    # 读取模型参数
+    if len(model_param_files) > 0:
+        model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
+        model_param = torch.load(os.path.join(model_param_path, model_param_name))
+        cofs_model.load_state_dict(model_param)
 
 # 打印模型
 #print(cofs_model)
@@ -94,21 +98,15 @@ cofs_model.load_state_dict(model_param)
 optimizer = torch.optim.Adam(cofs_model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-9)
 
 if __name__ == '__main__':
+    # tqdm
+    pbar = tqdm.tqdm(total=epoches * dataLoader.__len__())
+
     # 设置为训练模式
     cofs_model.train()
 
     # 迭代训练
-    epoch_time_start = time.time()
     for epoch in range(model_epoch_index + 1, epoches):
-        print(f'epoch {epoch} start')
-        batch_idx = 0
-        epoch_time = time.time()
-        batch_time_start = time.time()
-
         for batch in dataLoader:
-            batch_time = time.time()
-            batch_idx += 1
-            print(f"batch: {batch_idx} / {dataLoader.__len__()}")
             # 读取数据
             src_idx, layout_idx, seq_num = batch
             src_idx = src_idx.numpy().astype(int)
@@ -129,14 +127,6 @@ if __name__ == '__main__':
                 layout.append(layouts[layout_idx[i, 0]])
             layout = np.array(layout)
             layout = torch.tensor(layout, dtype=torch.float32).to(device)
-            # 根据seq_num生成排列组合
-            # permutations = []
-            # for num in seq_num:
-            #     order = permute(num[0])
-            #     random.shuffle(order)
-            #     order_len = min(permutation_num, len(order))
-            #     order = order[:order_len]
-            #     permutations.append(order)
             # 设置requires_grad
             src.requires_grad = False
             layout.requires_grad = True
@@ -201,23 +191,13 @@ if __name__ == '__main__':
                 ## 其他属性生成
                 #loss_attr = dmll(output_attr, ground_truth[:, j + 1: j + attr_num].unsqueeze(-1))
                 loss_attr = property_loss_single(output_attr.squeeze(), ground_truth[:, j + 1: j + attr_num])
-                loss_attr_sum = torch.sum(loss_attr, dim=1)
                 loss_translation = torch.sum(loss_attr[:, :3], dim=-1)
                 loss_size = torch.sum(loss_attr[:, 3:6], dim=-1)
                 loss_rotation = torch.sum(loss_attr[:, 6:], dim=-1)
 
-                # 损失权重调整
-                loss_translation = loss_translation * 10
-                loss_size = loss_size * 5
-                loss_rotation = loss_rotation * 3
-
                 # total loss
-                loss_per_batch = loss_type + loss_attr_sum
+                loss_per_batch = loss_type + loss_translation + loss_size + loss_rotation
                 loss = torch.sum(loss_per_batch) / batch_size
-                loss_translation = torch.sum(loss_translation) / batch_size
-                loss_size = torch.sum(loss_size) / batch_size
-                loss_rotation = torch.sum(loss_rotation) / batch_size
-                loss_type = torch.sum(loss_type) / batch_size
 
                 # 清除梯度
                 optimizer.zero_grad()
@@ -238,48 +218,13 @@ if __name__ == '__main__':
                     if output_type_debug[i, 0] != class_num + 2 - 1:
                         last_seq_num[i] += 1
 
-                # print per token
-                print(f"token: {int(j / 8) + 1}, total loss: {loss.item()}, type loss: {loss_type.item()}, translation loss: {loss_translation.item()}, size loss: {loss_size.item()}, rotation loss: {loss_rotation.item()}")
-
-                print("Target type: ", end="")
-                for type in gt_data_class.to(int):
-                    print(type.item(), end=" ")
-                print()
-
-                print("Predict type: ", end="")
-                for type in output_type_debug:
-                    print(type.item(), end=" ")
-                print()
-
-            # print per batch
-            single_batch_time = time.time() - batch_time
-            single_batch_time = "{:02d}:{:02d}:{:02d}".format(int(single_batch_time // 3600),
-                                                              int((single_batch_time % 3600) // 60),
-                                                              int(single_batch_time % 60))
-            total_batch_time = time.time() - batch_time_start
-            total_batch_time = "{:02d}:{:02d}:{:02d}".format(int(total_batch_time // 3600),
-                                                             int((total_batch_time % 3600) // 60),
-                                                             int(total_batch_time % 60))
-            print(f"Time: {single_batch_time}, total time: {total_batch_time}")
-            print('--------------------------------------------------------------------------------')
-
-        # print per epoch
-        print(f"Epoch: {epoch} / {epoches}")
-        single_epoch_time = time.time() - epoch_time
-        single_epoch_time = "{:02d}:{:02d}:{:02d}".format(int(single_epoch_time // 3600), int((single_epoch_time % 3600) // 60), int(single_epoch_time % 60))
-        total_epoch_time = time.time() - epoch_time_start
-        total_epoch_time = "{:02d}:{:02d}:{:02d}".format(int(total_epoch_time // 3600), int((total_epoch_time % 3600) // 60), int(total_epoch_time % 60))
-        print(f"Time: {single_epoch_time}, total time: {total_epoch_time}")
+            # pbar.set_postfix(loss=)
+            pbar.update(1)
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数
             torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epoch}.pth')
             print(f"Model saved at Epoch: {epoch}")
 
-        print('--------------------------------------------------------------------------------')
-        print('--------------------------------------------------------------------------------')
-
-    # 保存训练参数
-    torch.save(cofs_model.state_dict(), 'model/bedrooms_model.pth')
 
 
