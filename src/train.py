@@ -41,6 +41,7 @@ batch_size = training_config['batch_size']
 max_sequence_length = config['network']['max_sequence_length']
 lr = training_config['lr']
 checkpoint_freq = training_config['checkpoint_frequency']
+dropout = training_config['dropout']
 
 # wandb设置
 wandb.init(
@@ -53,6 +54,10 @@ wandb.init(
         "architecture": "Transformer",
         "dataset": "3D-Front",
         "epochs": epochs,
+        "dropout": dropout,
+        "batch_size": batch_size,
+        "max_sequence_length": max_sequence_length,
+        "class_num": class_num,
     }
 )
 
