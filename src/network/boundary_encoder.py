@@ -6,7 +6,7 @@ class ResNet18(nn.Module):
         super(ResNet18, self).__init__()
         self.feature_size = feature_size
 
-        self.boundary_encoder = models.resnet18(pretrained=False)
+        self.boundary_encoder = models.resnet18(weights=True)
 
         # 暂时先不考虑freeze_batch_norm的情况
 

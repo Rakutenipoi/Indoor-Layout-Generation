@@ -12,17 +12,19 @@ data:
     bounds_angles: [-3.1416, 3.1416]
 
 network:
-    n_layers: 8
-    n_heads: 4
+    n_enc_layers: 6
+    n_dec_layers: 6
+    n_heads: 8
     dimensions: 256
-    feed_forward_dimensions: 1024
+    feed_forward_dimensions: 512
     max_sequence_length: 120
     start_token: 0
     end_token: 22
+    activation: "gelu"
     sampler:
         hidden_input_dimension: 512
         hidden_output_dimension: 256
-        output_dimension: 1
+        output_dimension: 30
 
 boundary_encoder:
     name: "resnet18"
@@ -31,8 +33,8 @@ boundary_encoder:
     feature_size: 256
 
 training:
-    dropout: 0.5
+    dropout: 0.3
     batch_size: 32
-    epoches: 100
+    epochs: 100
     checkpoint_frequency: 20
-    lr: 0.00021
+    lr: 0.0003

@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pandas as pd
 import json
-from read_dataset import *
+from .read_dataset import *
 from src.utils.yaml_reader import *
 #from dataset import *
 import itertools

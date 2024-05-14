@@ -13,3 +13,4 @@
 *.pkl
 *.csv
 data/3d-front-dataset-bedroom/metadata.json
+/wandb
