@@ -1,3 +1,5 @@
+import pickle
+
 from torch.utils.data import DataLoader, SubsetRandomSampler
 import tqdm
 import wandb
@@ -71,18 +73,28 @@ dropout = training_config['dropout']
 # )
 
 # 训练数据读取
-data_path = 'data/processed/bedrooms/'
-data_type = 'full_shuffled'
-full_data = np.load(os.path.join(data_path, f'bedrooms_{data_type}_data.npy'), allow_pickle=True)
-layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
-sequences = np.load(os.path.join(data_path, f'bedrooms_{data_type}_sequence.npy'))
+data_path = config['data']['processed_directory']
+dataset_name = 'dataset.pkl'
+dataset_path = os.path.join(data_path, dataset_name)
+has_dataset = os.path.exists(dataset_path)
+if has_dataset:
+    with open(dataset_path, 'rb') as f:
+        src_dataset = pickle.load(f)
+    print("Dataset loaded")
+else:
+    data_type = 'full_shuffled'
+    full_data = np.load(os.path.join(data_path, f'bedrooms_{data_type}_data.npy'), allow_pickle=True)
+    layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
+    sequences = np.load(os.path.join(data_path, f'bedrooms_{data_type}_sequence.npy'))
+    # 提取数据
+    sequence_index, layout_index, sequences_num = extract_data(full_data)
+    # 数据集转换
+    sequences = sequences.reshape(-1, max_sequence_length)
+    src_dataset = COFSDataset(sequences, layouts, sequences_num)
+    with open(dataset_path, 'wb') as f:
+        pickle.dump(src_dataset, f)
+    print("Dataset saved")
 
-# 提取数据
-sequence_index, layout_index, sequences_num = extract_data(full_data)
-
-# 数据集转换
-sequences = sequences.reshape(-1, max_sequence_length)
-src_dataset = COFSDataset(sequences, layouts, sequences_num)
 dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
 # 创建网络模型
@@ -126,8 +138,6 @@ if __name__ == '__main__':
         avg_loss = 0
         epoch_time = time.time()
         for step, batch in enumerate(dataLoader):
-            # 清除梯度
-            optimizer.zero_grad(set_to_none=True)
             # 读取数据
             src, layout, seq_num = batch
             seq_num = seq_num.to(torch.int32).to(device)
@@ -168,6 +178,9 @@ if __name__ == '__main__':
             output = cofs_model(src, layout, src, seq_num, tgt_num)
             # 计算损失
             loss = loss_calculate(src, output, tgt_num, config)
+
+            # 清除梯度
+            optimizer.zero_grad(set_to_none=True)
 
             #反向传播
             avg_loss += loss.item()
