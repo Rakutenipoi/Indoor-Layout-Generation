@@ -1,12 +1,14 @@
 import torch.nn as nn
 from torchvision import models
+from torchvision.models import ResNet18_Weights
+
 
 class ResNet18(nn.Module):
     def __init__(self, freeze_bn, input_channels, feature_size):
         super(ResNet18, self).__init__()
         self.feature_size = feature_size
 
-        self.boundary_encoder = models.resnet18(weights=True)
+        self.boundary_encoder = models.resnet18(weights=ResNet18_Weights.DEFAULT)
 
         # 暂时先不考虑freeze_batch_norm的情况
 

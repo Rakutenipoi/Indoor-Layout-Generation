@@ -4,21 +4,20 @@ from .process_dataset import *
 import random
 
 class COFSDataset(Dataset):
-    def __init__(self, data, index, length, config):
-        self.data = data
-        self.index = index
+    def __init__(self, seq, layout, length):
+        self.seq = seq
+        self.layout = layout
         self.length = length
-        self.permutation_num = config['data']['permutation_num']
 
     def __len__(self):
-        return len(self.data)
+        return len(self.seq)
 
     def __getitem__(self, idx):
-        sample = self.data[idx]
-        index = self.index[idx]
+        seq = self.seq[idx]
+        layout = self.layout[idx]
         length = self.length[idx]
 
-        return sample, index, length
+        return seq, layout, length
 
 
 

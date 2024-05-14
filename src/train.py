@@ -15,6 +15,7 @@ from utils.monitor import *
 
 # pytorch设置
 np.set_printoptions(suppress=True)
+torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 torch.set_default_dtype(torch.float32)
 
@@ -79,23 +80,10 @@ sequences = np.load(os.path.join(data_path, f'bedrooms_{data_type}_sequence.npy'
 # 提取数据
 sequence_index, layout_index, sequences_num = extract_data(full_data)
 
-# batch划分
-batch_num = sequence_index.shape[0] // batch_size
-sequence_index = sequence_index[:batch_num * batch_size]
-layout_index = layout_index[:batch_num * batch_size]
-sequences_num = sequences_num[:batch_num * batch_size]
-layouts = layouts[:batch_num * batch_size]
-sequences = sequences[:batch_num * batch_size]
-
 # 数据集转换
-src_dataset = COFSDataset(sequence_index, layout_index, sequences_num, config)
-# 计算要读取的数据的数量
-sample_size = int(0.1 * len(src_dataset))
-# 创建一个随机抽样的索引列表
-indices = torch.randperm(len(src_dataset))[:sample_size]
-# 创建 SubsetRandomSampler，并传入索引列表
-sampler = SubsetRandomSampler(indices)
-dataLoader = DataLoader(src_dataset, batch_size=batch_size, num_workers=14, sampler=sampler)
+sequences = sequences.reshape(-1, max_sequence_length)
+src_dataset = COFSDataset(sequences, layouts, sequences_num)
+dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
 # 创建网络模型
 cofs_model = cofs_network(config).to(device)
@@ -134,36 +122,25 @@ if __name__ == '__main__':
     cofs_model.train()
 
     # 迭代训练
-    step = 0
     for epoch in range(model_epoch_index + 1, epochs):
         avg_loss = 0
         epoch_time = time.time()
-        for batch in dataLoader:
+        for step, batch in enumerate(dataLoader):
             # 清除梯度
             optimizer.zero_grad(set_to_none=True)
             # 读取数据
-            src_idx, layout_idx, seq_num = batch
-            src_idx = src_idx.numpy().astype(int)
-            seq_num = seq_num.numpy().astype(int)
+            src, layout, seq_num = batch
+            seq_num = seq_num.to(torch.int32).to(device)
             tgt_num = seq_num
             # 读取序列
-            src = []
-            for i in range(batch_size):
-                src.append(sequences[src_idx[i]])
-            src = np.array(src).reshape(batch_size, -1)
-            src = torch.tensor(src, device=device)
-            tgt = src.clone()
+            src = src.to(device)
+            # tgt = src.clone()
             # 读取布局
-            layout = []
-            layout_idx = layout_idx.numpy().astype(int)
-            for i in range(batch_size):
-                layout.append(layouts[layout_idx[i, 0]])
-            layout = np.array(layout)
-            layout = torch.tensor(layout, device=device, dtype=torch.get_default_dtype())
+            layout = layout.to(device).to(torch.float32)
             # 设置requires_grad
             src.requires_grad = False
             layout.requires_grad = True
-            tgt.requires_grad = True
+            # tgt.requires_grad = True
 
             # # src随机mask
             # mask = torch.ones_like(src)
@@ -188,7 +165,7 @@ if __name__ == '__main__':
             src.requires_grad = True
 
             # 前向传播
-            output = cofs_model(src, layout, tgt, seq_num, tgt_num)
+            output = cofs_model(src, layout, src, seq_num, tgt_num)
             # 计算损失
             loss = loss_calculate(src, output, tgt_num, config)
 
