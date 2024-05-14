@@ -2,20 +2,20 @@ from torch.utils.data import DataLoader
 import tqdm
 import wandb
 from torch.optim.lr_scheduler import CosineAnnealingLR
-import cProfile
-import re
+import pandas as pd
 
 from network.network import cofs_network
 from process.dataset import *
 from utils.loss_cal import *
+from utils.monitor import *
 
 # 系统设置
 #os.chdir(sys.path[0])
 
 # pytorch设置
-torch.set_printoptions(profile="full")
-torch.set_printoptions(sci_mode=False)
 np.set_printoptions(suppress=True)
+torch.backends.cudnn.benchmark = True
+torch.set_printoptions(profile="full")
 
 # GPU
 if torch.cuda.is_available():
@@ -23,9 +23,6 @@ if torch.cuda.is_available():
 else:
     dev = "cpu"
 device = torch.device(dev)
-
-# 性能分析
-cProfile.run('re.compile("foo|bar")')
 
 # 读取config
 config_path = 'config'
@@ -105,19 +102,23 @@ if (load_pretrain):
         cofs_model.load_state_dict(model_param)
 
 # 优化器
-optimizer = torch.optim.Adam(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8)
+optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8)
 scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=0)
 
 if __name__ == '__main__':
     # tqdm
-    pbar = tqdm.tqdm(total=epochs * dataLoader.__len__())
+    pbar = tqdm.tqdm(total=epochs)
 
     # 设置为训练模式
     cofs_model.train()
 
     # 迭代训练
+    step = 0
     for epoch in range(model_epoch_index + 1, epochs):
+        avg_loss = 0
+        epoch_time = time.time()
         for batch in dataLoader:
+            batch_time = time.time()
             # 读取数据
             src_idx, layout_idx, seq_num = batch
             src_idx = src_idx.numpy().astype(int)
@@ -128,7 +129,7 @@ if __name__ == '__main__':
             for i in range(batch_size):
                 src.append(sequences[src_idx[i]])
             src = np.array(src).reshape(batch_size, -1)
-            src = torch.tensor(src, dtype=torch.float32).to(device)
+            src = torch.tensor(src, dtype=torch.float32, device=device)
             tgt = src.clone()
             # 读取布局
             layout = []
@@ -136,7 +137,7 @@ if __name__ == '__main__':
             for i in range(batch_size):
                 layout.append(layouts[layout_idx[i, 0]])
             layout = np.array(layout)
-            layout = torch.tensor(layout, dtype=torch.float32).to(device)
+            layout = torch.tensor(layout, dtype=torch.float32, device=device)
             # 设置requires_grad
             src.requires_grad = False
             layout.requires_grad = True
@@ -163,24 +164,39 @@ if __name__ == '__main__':
 
             # 设置requires_grad为True
             src.requires_grad = True
+            data_prepare_time = time.time() - batch_time
 
+            start_time = time.time()
             output = cofs_model(src, layout, tgt, seq_num, tgt_num)
+            forward_time = time.time() - start_time
 
             # 计算损失
-            loss = loss_calculate(src, output, config)
+            start_time = time.time()
+            loss = loss_calculate(src, output, tgt_num, config)
+            loss_time = time.time() - start_time
+            avg_loss += loss.item()
 
             # 清除梯度
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
             #反向传播
+            start_time = time.time()
             loss.backward()
+            backward_time = time.time() - start_time
 
             # 更新参数
+            start_time = time.time()
             optimizer.step()
             scheduler.step()
+            update_time = time.time() - start_time
+            batch_time = time.time() - batch_time
+            step += 1
 
-            pbar.set_postfix(loss=loss)
-            pbar.update(1)
+            print(f"step: {step}, loss: {loss.item()}, batch_time: {batch_time}")
+
+        # 更新pbar
+        pbar.set_postfix(avg_loss=avg_loss / len(dataLoader), time=time.time() - epoch_time)
+        pbar.update(1)
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数

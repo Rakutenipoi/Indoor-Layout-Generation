@@ -4,6 +4,15 @@ import torch.nn.functional as F
 import wandb
 import numpy as np
 
+from .monitor import *
+
+# GPU
+if torch.cuda.is_available():
+    dev = "cuda"
+else:
+    dev = "cpu"
+device = torch.device(dev)
+
 def gaussian_loss(predict, truth):
     # 计算高斯分布的均值和方差
     mu = predict[:, :, :, 1]  # 预测结果的均值
@@ -31,7 +40,14 @@ def gaussian_loss(predict, truth):
 
     return loss
 
-def loss_calculate(src, output, config):
+def get_padding_mask(seq_length):
+    padding_mask = torch.ones((32, 105), device=device, dtype=torch.float32)
+    for i, length in enumerate(seq_length):
+        padding_mask[i, length.item():] = 0.0
+
+    return padding_mask
+
+def loss_calculate(src, output, src_len, config):
     # config
     attributes_num = config['data']['attributes_num']
     object_max_num = config['data']['object_max_num']
@@ -41,7 +57,7 @@ def loss_calculate(src, output, config):
     batch_size = src.size(0)
     # 提取分类结果
     output_class = output[:, ::attributes_num, :class_num]
-    output_class = torch.argmax(output_class, dim=2)
+    # output_class = torch.argmax(output_class, dim=2)
     src_class = src[:, ::attributes_num]
     # 提取回归结果
     slices = [output[:, start:start + attributes_num - 1, :] for start in range(1, max_len, attributes_num)]
@@ -52,10 +68,12 @@ def loss_calculate(src, output, config):
     output_attr = output_attr.view(batch_size, -1, sample_num, 3)
 
     # 计算分类损失
-    loss_class = nn.CrossEntropyLoss()(output_class.to(torch.float32), src_class)
+    loss_class = F.cross_entropy(output_class.view(-1, class_num), src_class.to(torch.int64).view(-1), ignore_index=0)
 
     # 计算回归损失
+    mask = get_padding_mask(src_len * (attributes_num - 1))
     loss_property = gaussian_loss(output_attr, src_attr)
+    loss_property = loss_property * mask
     # 对损失进行平均
     loss_transition = [loss_property[:, start : start + 3] for start in range(0, max_len - object_max_num, attributes_num - 1)]
     loss_transition = torch.sum(torch.cat(loss_transition, dim=1), dim=-1).mean()
@@ -66,7 +84,7 @@ def loss_calculate(src, output, config):
     loss_property = torch.sum(loss_property, dim=-1).mean()
 
     # 总损失
-    loss = loss_class + loss_property
+    loss = loss_class + loss_property / 10.0
 
     # wandb记录
     wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,

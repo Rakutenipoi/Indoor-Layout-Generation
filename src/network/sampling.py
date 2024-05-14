@@ -35,14 +35,13 @@ class Sampler(nn.Module):
             #nn.ReLU(),
         )
 
-        mask = torch.zeros(self.max_len, dtype=torch.float32)
-        mask[::self.attributes_num] = 1
-        mask = mask.unsqueeze(0).expand(self.max_len, -1)
-        self.mask = mask.to(device)
-        inv_mask = torch.ones(self.max_len, dtype=torch.float32)
-        inv_mask[::self.attributes_num] = 0
-        inv_mask = inv_mask.unsqueeze(0).expand(self.max_len, -1)
-        self.inv_mask = inv_mask.to(device)
+        self.mask = torch.zeros(self.max_len, dtype=torch.float32, device=device)
+        self.mask[::self.attributes_num] = 1
+        self.mask = self.mask.unsqueeze(0).expand(self.max_len, -1)
+        self.inv_mask = torch.ones(self.max_len, dtype=torch.float32, device=device)
+        self.inv_mask[::self.attributes_num] = 0
+        self.inv_mask = self.inv_mask.unsqueeze(0).expand(self.max_len, -1)
+
 
     def forward(self, x):
         discrete_layer = self.discrete_layer(x)

@@ -16,10 +16,10 @@ network:
     n_dec_layers: 6
     n_heads: 8
     dimensions: 256
-    feed_forward_dimensions: 512
+    feed_forward_dimensions: 1024
     max_sequence_length: 120
-    start_token: 0
-    end_token: 22
+    start_token: 22
+    end_token: 0
     activation: "gelu"
     sampler:
         hidden_input_dimension: 512
@@ -37,4 +37,4 @@ training:
     batch_size: 32
     epochs: 100
     checkpoint_frequency: 20
-    lr: 0.0003
+    lr: 0.00003

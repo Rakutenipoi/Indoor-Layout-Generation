@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import time
 
 from .boundary_encoder import get_boundary_encoder
 from .embedding import Embedding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
@@ -40,12 +41,15 @@ class cofs_network(nn.Module):
             class_num=self.class_num,
             sequence_length=self.max_sequence_length,
             encode_levels=self.dimensions / 2,
-            E_dims=self.dimensions
+            E_dims=self.dimensions,
+            attribute_num=self.attributes_num,
+            dropout=self.dropout
         )
 
         self.relative_position_encoding = RelativePositionEncoding(
             attributes_num=self.attributes_num,
-            E_dims=self.dimensions
+            E_dims=self.dimensions,
+            object_max_num=self.object_max_num
         )
         self.object_index_encoding = ObjectIndexEncoding(
             object_max_num=self.object_max_num,
@@ -53,7 +57,7 @@ class cofs_network(nn.Module):
             E_dims=self.dimensions
         )
         self.absolute_position_encoding = AbsolutePositionEncoding(
-            object_num=self.object_max_num,
+            object_max_num=self.object_max_num,
             attributes_num=self.attributes_num,
             E_dims=self.dimensions
         )
@@ -76,7 +80,7 @@ class cofs_network(nn.Module):
         self.sampler = Sampler(config)
 
     def get_padding_mask(self, seq_length):
-        padding_mask = torch.zeros((self.batch_size, self.max_sequence_length + 1)).to(device)
+        padding_mask = torch.zeros((self.batch_size, self.max_sequence_length + 1), device=device)
         for i, length in enumerate(seq_length):
             padding_mask[i, length.item():] = -torch.inf
 
@@ -99,8 +103,7 @@ class cofs_network(nn.Module):
         # Input Blend & Concatenate
         ## sequence
         sequence = sequence + relative_position + object_index
-        sos = torch.full((self.batch_size, 1), self.start_token).to(torch.device(device))
-        sos = self.embedding(sos)
+        sos = self.embedding.get_embedding(torch.tensor([self.start_token], device=device), self.batch_size)
         sequence = torch.concat((layout_feature, sequence), dim=1)
         ## last_sequence
         last_sequence = last_sequence + absolute_position
