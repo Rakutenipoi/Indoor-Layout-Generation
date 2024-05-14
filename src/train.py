@@ -174,20 +174,16 @@ if __name__ == '__main__':
             # 设置requires_grad为True
             src.requires_grad = True
 
-            # 前向传播
-            output = cofs_model(src, layout, src, seq_num, tgt_num)
-            # 计算损失
-            loss = loss_calculate(src, output, tgt_num, config)
+            with autocast():
+                # 前向传播
+                output = cofs_model(src, layout, src, seq_num, tgt_num)
+                # 计算损失
+                loss = loss_calculate(src, output, tgt_num, config)
+            scaler.scale(loss).backward()
 
-            # 清除梯度
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad(set_to_none=True)
-
-            #反向传播
-            avg_loss += loss.item()
-            loss.backward()
-
-            # 更新参数
-            optimizer.step()
             scheduler.step()
 
         # 更新pbar
