@@ -1,8 +1,9 @@
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SubsetRandomSampler
 import tqdm
 import wandb
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import pandas as pd
+from torch.cuda.amp import GradScaler, autocast
 
 from network.network import cofs_network
 from process.dataset import *
@@ -15,7 +16,7 @@ from utils.monitor import *
 # pytorch设置
 np.set_printoptions(suppress=True)
 torch.backends.cudnn.benchmark = True
-torch.set_printoptions(profile="full")
+torch.set_default_dtype(torch.float32)
 
 # GPU
 if torch.cuda.is_available():
@@ -35,6 +36,7 @@ class_num = config['data']['class_num']
 permutation_num = config['data']['permutation_num']
 
 # 训练数据设置
+network_param = config['network']
 training_config = config['training']
 epochs = training_config['epochs']
 batch_size = training_config['batch_size']
@@ -44,22 +46,28 @@ checkpoint_freq = training_config['checkpoint_frequency']
 dropout = training_config['dropout']
 
 # wandb设置
-wandb.init(
-    # set the wandb project where this run will be logged
-    project="cofs",
-
-    # track hyperparameters and run metadata
-    config={
-        "learning_rate": lr,
-        "architecture": "Transformer",
-        "dataset": "3D-Front",
-        "epochs": epochs,
-        "dropout": dropout,
-        "batch_size": batch_size,
-        "max_sequence_length": max_sequence_length,
-        "class_num": class_num,
-    }
-)
+# wandb.init(
+#     # set the wandb project where this run will be logged
+#     project="cofs",
+#
+#     # track hyperparameters and run metadata
+#     config={
+#         "learning_rate": lr,
+#         "architecture": "Transformer",
+#         "dataset": "3D-Front",
+#         "epochs": epochs,
+#         "dropout": dropout,
+#         "batch_size": batch_size,
+#         "max_sequence_length": max_sequence_length,
+#         "class_num": class_num,
+#         "encoder_layers": network_param['n_enc_layers'],
+#         "decoder_layers": network_param['n_dec_layers'],
+#         "heads": network_param['n_heads'],
+#         "dimensions": network_param['dimensions'],
+#         "feed_forward_dimensions": network_param['feed_forward_dimensions'],
+#         "activation": network_param['activation'],
+#     }
+# )
 
 # 训练数据读取
 data_path = 'data/processed/bedrooms/'
@@ -81,7 +89,13 @@ sequences = sequences[:batch_num * batch_size]
 
 # 数据集转换
 src_dataset = COFSDataset(sequence_index, layout_index, sequences_num, config)
-dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True)
+# 计算要读取的数据的数量
+sample_size = int(0.1 * len(src_dataset))
+# 创建一个随机抽样的索引列表
+indices = torch.randperm(len(src_dataset))[:sample_size]
+# 创建 SubsetRandomSampler，并传入索引列表
+sampler = SubsetRandomSampler(indices)
+dataLoader = DataLoader(src_dataset, batch_size=batch_size, num_workers=14, sampler=sampler)
 
 # 创建网络模型
 cofs_model = cofs_network(config).to(device)
@@ -109,10 +123,12 @@ if (load_pretrain):
 # 优化器
 optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8)
 scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=0)
+scaler = GradScaler()
 
 if __name__ == '__main__':
     # tqdm
     pbar = tqdm.tqdm(total=epochs)
+    print("dataLoader length: ", len(dataLoader))
 
     # 设置为训练模式
     cofs_model.train()
@@ -123,7 +139,8 @@ if __name__ == '__main__':
         avg_loss = 0
         epoch_time = time.time()
         for batch in dataLoader:
-            batch_time = time.time()
+            # 清除梯度
+            optimizer.zero_grad(set_to_none=True)
             # 读取数据
             src_idx, layout_idx, seq_num = batch
             src_idx = src_idx.numpy().astype(int)
@@ -134,7 +151,7 @@ if __name__ == '__main__':
             for i in range(batch_size):
                 src.append(sequences[src_idx[i]])
             src = np.array(src).reshape(batch_size, -1)
-            src = torch.tensor(src, dtype=torch.float32, device=device)
+            src = torch.tensor(src, device=device)
             tgt = src.clone()
             # 读取布局
             layout = []
@@ -142,7 +159,7 @@ if __name__ == '__main__':
             for i in range(batch_size):
                 layout.append(layouts[layout_idx[i, 0]])
             layout = np.array(layout)
-            layout = torch.tensor(layout, dtype=torch.float32, device=device)
+            layout = torch.tensor(layout, device=device, dtype=torch.get_default_dtype())
             # 设置requires_grad
             src.requires_grad = False
             layout.requires_grad = True
@@ -169,35 +186,19 @@ if __name__ == '__main__':
 
             # 设置requires_grad为True
             src.requires_grad = True
-            data_prepare_time = time.time() - batch_time
 
-            start_time = time.time()
+            # 前向传播
             output = cofs_model(src, layout, tgt, seq_num, tgt_num)
-            forward_time = time.time() - start_time
-
             # 计算损失
-            start_time = time.time()
             loss = loss_calculate(src, output, tgt_num, config)
-            loss_time = time.time() - start_time
-            avg_loss += loss.item()
-
-            # 清除梯度
-            optimizer.zero_grad(set_to_none=True)
 
             #反向传播
-            start_time = time.time()
+            avg_loss += loss.item()
             loss.backward()
-            backward_time = time.time() - start_time
 
             # 更新参数
-            start_time = time.time()
             optimizer.step()
             scheduler.step()
-            update_time = time.time() - start_time
-            batch_time = time.time() - batch_time
-            step += 1
-
-            print(f"step: {step}, loss: {loss.item()}, batch_time: {batch_time}")
 
         # 更新pbar
         pbar.set_postfix(avg_loss=avg_loss / len(dataLoader), time=time.time() - epoch_time)

@@ -41,7 +41,7 @@ def gaussian_loss(predict, truth):
     return loss
 
 def get_padding_mask(seq_length):
-    padding_mask = torch.ones((32, 105), device=device, dtype=torch.float32)
+    padding_mask = torch.ones((32, 105), device=device)
     for i, length in enumerate(seq_length):
         padding_mask[i, length.item():] = 0.0
 
@@ -84,10 +84,10 @@ def loss_calculate(src, output, src_len, config):
     loss_property = torch.sum(loss_property, dim=-1).mean()
 
     # 总损失
-    loss = loss_class + loss_property / 10.0
+    loss = loss_class + loss_property * 0.3
 
     # wandb记录
-    wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,
-               'rotation_loss': loss_rotation})
+    # wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,
+    #            'rotation_loss': loss_rotation, 'property_loss': loss_property})
 
     return loss

@@ -69,7 +69,9 @@ class RelativePositionEncoding(nn.Module):
     def __init__(self, attributes_num=8, E_dims=256, object_max_num=15):
         super(RelativePositionEncoding, self).__init__()
         self.E_relative_position = nn.Parameter(torch.randn(attributes_num, E_dims, device=device))
-        self.relative_index = torch.arange(attributes_num, device=device).repeat(object_max_num)
+        self.E_property_relative_position = nn.Parameter(torch.randn(4, E_dims, device=device))
+        self.relative_index = torch.arange(attributes_num, device=device, dtype=torch.int32).repeat(object_max_num)
+        self.property_relative_index = torch.tensor([0, 1, 1, 1, 2, 2, 2, 3], dtype=torch.int32, device=device).repeat(object_max_num)
         self.attributes_num = attributes_num
         self.E_dims = E_dims
 
@@ -79,14 +81,16 @@ class RelativePositionEncoding(nn.Module):
 
         out = self.E_relative_position.index_select(0, self.relative_index)
         out = out.expand(batch_size, seq_length, self.E_dims)
+        property_out = self.E_property_relative_position.index_select(0, self.property_relative_index)
+        property_out = property_out.expand(batch_size, seq_length, self.E_dims)
 
-        return out
+        return out + property_out
 
 class ObjectIndexEncoding(nn.Module):
     def __init__(self, object_max_num, attributes_num=8, E_dims=256):
         super().__init__()
         self.E_object_index = nn.Parameter(torch.randn(object_max_num, E_dims))
-        self.relative_index = torch.arange(object_max_num * attributes_num, device=device) // attributes_num
+        self.relative_index = torch.arange(object_max_num * attributes_num, device=device, dtype=torch.int32) // attributes_num
         self.E_dims = E_dims
         self.attributes_num = attributes_num
 
@@ -103,7 +107,7 @@ class AbsolutePositionEncoding(nn.Module):
     def __init__(self, object_max_num, attributes_num=8, E_dims=256):
         super().__init__()
         self.E_absolute_position = nn.Parameter(torch.randn(object_max_num, E_dims))
-        self.relative_index = torch.arange(object_max_num * attributes_num, device=device) // attributes_num
+        self.relative_index = torch.arange(object_max_num * attributes_num, device=device, dtype=torch.int32) // attributes_num
         self.E_dims = E_dims
         self.attributes_num = attributes_num
 
