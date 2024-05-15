@@ -104,7 +104,12 @@ if __name__ == '__main__':
             pickle.dump(src_dataset, f)
         print("Dataset saved")
 
-    dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    # 对src_dataset进行划分
+    train_size = int(0.8 * len(src_dataset))
+    val_size = len(src_dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(src_dataset, [train_size, val_size])
+    train_dataLoader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    val_dataLoader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     # 创建网络模型
     cofs_model = cofs_network(config).to(device)
@@ -143,7 +148,7 @@ if __name__ == '__main__':
     scaler = GradScaler()
 
     # tqdm
-    print("dataLoader length: ", len(dataLoader))
+    print("dataLoader length: ", len(train_dataLoader))
     pbar = tqdm.tqdm(total=epochs)
 
     # 设置为训练模式
@@ -153,7 +158,7 @@ if __name__ == '__main__':
     for epoch in range(model_epoch_index + 1, epochs):
         avg_loss = 0
         epoch_time = time.time()
-        for step, batch in enumerate(dataLoader):
+        for step, batch in enumerate(train_dataLoader):
             optimizer.zero_grad(set_to_none=True)
             # 读取数据
             src, layout, seq_num = batch
@@ -195,42 +200,44 @@ if __name__ == '__main__':
                 # 前向传播
                 output = cofs_model(src, layout, src, seq_num, tgt_num)
                 # 计算损失
-                loss = loss_calculate(src, output, tgt_num, config)
+                loss = loss_calculate(src, output, tgt_num, config, is_val=False)
+
+            avg_loss += loss.item()
             scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(parameters=cofs_model.parameters(), max_norm=30, norm_type=2)
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
 
-        # # 每隔5个epoch进行一次validation
-        # if epoch % 5 == 0:
-        #     cofs_model.eval()
-        #     val_loss = 0
-        #     for step, batch in enumerate(dataLoader):
-        #         # 读取数据
-        #         src, layout, seq_num = batch
-        #         seq_num = seq_num.to(torch.int32).to(device)
-        #         tgt_num = seq_num
-        #         # 读取序列
-        #         src = src.to(device)
-        #         # tgt = src.clone()
-        #         # 读取布局
-        #         layout = layout.to(device).to(torch.float32)
-        #         # 设置requires_grad
-        #         src.requires_grad = False
-        #         layout.requires_grad = True
-        #         # tgt.requires_grad = True
-        #         with autocast():
-        #             # 前向传播
-        #             output = cofs_model(src, layout, src, seq_num, tgt_num)
-        #             # 计算损失
-        #             loss = loss_calculate(src, output, tgt_num, config)
-        #         val_loss += loss.item()
-        #     print(f"Epoch: {epoch}, Validation Loss: {val_loss / len(dataLoader)}")
-        #     cofs_model.train()
+        # 每隔5个epoch进行一次validation
+        if epoch % 5 == 0:
+            cofs_model.eval()
+            val_loss = 0
+            for step, batch in enumerate(val_dataLoader):
+                # 读取数据
+                src, layout, seq_num = batch
+                seq_num = seq_num.to(torch.int32).to(device)
+                tgt_num = seq_num
+                # 读取序列
+                src = src.to(device)
+                # tgt = src.clone()
+                # 读取布局
+                layout = layout.to(device).to(torch.float32)
+                # 设置requires_grad
+                src.requires_grad = False
+                layout.requires_grad = False
+                # tgt.requires_grad = False
+                with autocast():
+                    # 前向传播
+                    output = cofs_model(src, layout, src, seq_num, tgt_num)
+                    # 计算损失
+                    loss = loss_calculate(src, output, tgt_num, config, is_val=True)
+                val_loss += loss.item()
+            print(f"Epoch: {epoch}, Validation Loss: {val_loss / len(val_dataLoader)}")
+            cofs_model.train()
 
         # 更新pbar
-        pbar.set_postfix(avg_loss=avg_loss / len(dataLoader), time=time.time() - epoch_time)
+        pbar.set_postfix(avg_loss=avg_loss / len(train_dataLoader), time=time.time() - epoch_time)
         pbar.update(1)
 
         if epoch % checkpoint_freq == 0:
