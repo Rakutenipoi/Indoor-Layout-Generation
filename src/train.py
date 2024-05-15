@@ -82,7 +82,7 @@ if __name__ == '__main__':
     # )
 
     # 训练数据读取
-    data_path = os.path.join(project_path, config['data']['processed_directory'])
+    data_path = os.path.join(project_path, 'data')
     dataset_name = 'dataset.pkl'
     dataset_path = os.path.join(data_path, dataset_name)
     has_dataset = os.path.exists(dataset_path)
@@ -235,6 +235,8 @@ if __name__ == '__main__':
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数
+            if (not os.path.exists(model_param_path)):
+                os.makedirs(model_param_path)
             torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epoch}.pth')
             print(f"Model saved at Epoch: {epoch}")
 
