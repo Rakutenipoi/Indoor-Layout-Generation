@@ -8,13 +8,13 @@ data:
     permutation_num: 100
 
 network:
-    n_layers: 8
-    n_heads: 4
+    n_layers: 4
+    n_heads: 8
     dimensions: 256
     feed_forward_dimensions: 1024
     max_sequence_length: 120
-    start_token: 0
-    end_token: 22
+    start_token: 22
+    end_token: 0
     sampler:
         hidden_input_dimension: 512
         hidden_output_dimension: 256
@@ -27,7 +27,7 @@ boundary_encoder:
     feature_size: 256
 
 training:
-    dropout: 0.3
+    dropout: 0.0
     batch_size: 1
     epoches: 100
     checkpoint_frequency: 1

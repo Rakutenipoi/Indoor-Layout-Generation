@@ -4,8 +4,8 @@ import random
 import numpy as np
 import pandas as pd
 import json
-from src.process.read_dataset import *
-from src.utils.yaml_reader import *
+from .read_dataset import *
+from utils.yaml_reader import *
 #from dataset import *
 import itertools
 import torch

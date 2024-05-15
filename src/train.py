@@ -1,5 +1,4 @@
 import pickle
-
 from torch.utils.data import DataLoader, SubsetRandomSampler
 import tqdm
 import wandb
@@ -7,10 +6,10 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 import pandas as pd
 from torch.cuda.amp import GradScaler, autocast
 
-from src.network.network import cofs_network
-from src.process.dataset import *
-from src.utils.loss_cal import *
-from src.utils.monitor import *
+from network.network import cofs_network
+from process.dataset import *
+from utils.loss_cal import *
+from utils.monitor import *
 
 if __name__ == '__main__':
     current_path = os.path.dirname(os.path.abspath(__file__))
@@ -55,31 +54,31 @@ if __name__ == '__main__':
     wandb_key = config['wandb']['key']
 
     # wandb设置
-    # wandb.login(key=wandb_key)
-    # wandb.init(
-    #     # set the wandb project where this run will be logged
-    #     project="cofs",
-    #
-    #     # track hyperparameters and run metadata
-    #     config={
-    #         "learning_rate": lr,
-    #         "architecture": "Transformer",
-    #         "dataset": "3D-Front",
-    #         "epochs": epochs,
-    #         "dropout": dropout,
-    #         "batch_size": batch_size,
-    #         "max_sequence_length": max_sequence_length,
-    #         "class_num": class_num,
-    #         "encoder_layers": network_param['n_enc_layers'],
-    #         "decoder_layers": network_param['n_dec_layers'],
-    #         "heads": network_param['n_heads'],
-    #         "dimensions": network_param['dimensions'],
-    #         "feed_forward_dimensions": network_param['feed_forward_dimensions'],
-    #         "activation": network_param['activation'],
-    #         "weight_decay": weight_decay,
-    #         "warmup_steps": warmup_steps
-    #     }
-    # )
+    wandb.login(key=wandb_key)
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="cofs",
+
+        # track hyperparameters and run metadata
+        config={
+            "learning_rate": lr,
+            "architecture": "Transformer",
+            "dataset": "3D-Front",
+            "epochs": epochs,
+            "dropout": dropout,
+            "batch_size": batch_size,
+            "max_sequence_length": max_sequence_length,
+            "class_num": class_num,
+            "encoder_layers": network_param['n_enc_layers'],
+            "decoder_layers": network_param['n_dec_layers'],
+            "heads": network_param['n_heads'],
+            "dimensions": network_param['dimensions'],
+            "feed_forward_dimensions": network_param['feed_forward_dimensions'],
+            "activation": network_param['activation'],
+            "weight_decay": weight_decay,
+            "warmup_steps": warmup_steps
+        }
+    )
 
     # 训练数据读取
     data_path = os.path.join(project_path, 'data')
@@ -200,7 +199,7 @@ if __name__ == '__main__':
                 # 前向传播
                 output = cofs_model(src, layout, src, seq_num, tgt_num)
                 # 计算损失
-                loss = loss_calculate(src, output, tgt_num, config, is_val=False)
+                loss = loss_calculate(src, output, tgt_num, config)
 
             avg_loss += loss.item()
             scaler.scale(loss).backward()
@@ -211,34 +210,37 @@ if __name__ == '__main__':
 
         # 每隔5个epoch进行一次validation
         if epoch % 5 == 0:
-            cofs_model.eval()
-            val_loss = 0
-            for step, batch in enumerate(val_dataLoader):
-                # 读取数据
-                src, layout, seq_num = batch
-                seq_num = seq_num.to(torch.int32).to(device)
-                tgt_num = seq_num
-                # 读取序列
-                src = src.to(device)
-                # tgt = src.clone()
-                # 读取布局
-                layout = layout.to(device).to(torch.float32)
-                # 设置requires_grad
-                src.requires_grad = False
-                layout.requires_grad = False
-                # tgt.requires_grad = False
-                with autocast():
-                    # 前向传播
-                    output = cofs_model(src, layout, src, seq_num, tgt_num)
-                    # 计算损失
-                    loss = loss_calculate(src, output, tgt_num, config, is_val=True)
-                val_loss += loss.item()
-            print(f"Epoch: {epoch}, Validation Loss: {val_loss / len(val_dataLoader)}")
+            with torch.no_grad():
+                cofs_model.eval()
+                val_loss = 0
+                for step, batch in enumerate(val_dataLoader):
+                    # 读取数据
+                    src, layout, seq_num = batch
+                    seq_num = seq_num.to(torch.int32).to(device)
+                    tgt_num = seq_num
+                    # 读取序列
+                    src = src.to(device)
+                    # tgt = src.clone()
+                    # 读取布局
+                    layout = layout.to(device).to(torch.float32)
+                    # 设置requires_grad
+                    src.requires_grad = False
+                    layout.requires_grad = False
+                    # tgt.requires_grad = False
+                    with autocast():
+                        # 前向传播
+                        output = cofs_model(src, layout, src, seq_num, tgt_num)
+                        # 计算损失
+                        loss = loss_calculate(src, output, tgt_num, config)
+                    val_loss += loss.item()
+                wandb.log({'val_loss': loss})
             cofs_model.train()
 
         # 更新pbar
-        pbar.set_postfix(avg_loss=avg_loss / len(train_dataLoader), time=time.time() - epoch_time)
+        avg_loss /= len(train_dataLoader)
+        pbar.set_postfix(avg_loss=avg_loss, time=time.time() - epoch_time)
         pbar.update(1)
+        wandb.log({'train_loss': avg_loss})
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数

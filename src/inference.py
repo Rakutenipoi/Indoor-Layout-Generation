@@ -43,7 +43,7 @@ layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
 cofs_model = cofs_network(config).to(device)
 
 # 读取模型参数
-model_param_path = '../model/full_shuffled_data_1'
+model_param_path = '../model/sunny-snowflake-67'
 # 读取该路径的文件
 model_param_files = os.listdir(model_param_path)
 # 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     cofs_model.eval()
 
     # 推理次数
-    inference_num = 50
+    inference_num = 5
 
     # 推理结果
     predicts = []

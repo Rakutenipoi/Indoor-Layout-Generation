@@ -1,8 +1,7 @@
 import json
 import os
 
-from src.utils.debug_message import Assert
-
+from utils.debug_message import Assert
 
 # 单个json文件读取
 def read_file_json(file_path):

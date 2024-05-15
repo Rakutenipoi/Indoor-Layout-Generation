@@ -1,4 +1,4 @@
-from src.process.process_dataset import *
+from .process_dataset import *
 
 class COFSDataset(Dataset):
     def __init__(self, seq, layout, length):

@@ -47,7 +47,7 @@ def get_padding_mask(seq_length, batch_size=32):
 
     return padding_mask
 
-def loss_calculate(src, output, src_len, config, is_val=False):
+def loss_calculate(src, output, src_len, config):
     # config
     attributes_num = config['data']['attributes_num']
     object_max_num = config['data']['object_max_num']
@@ -85,13 +85,5 @@ def loss_calculate(src, output, src_len, config, is_val=False):
 
     # 总损失
     loss = loss_class + loss_property * 0.3
-
-    # wandb记录
-    if (not is_val):
-        wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,
-                   'rotation_loss': loss_rotation, 'property_loss': loss_property})
-    else:
-        wandb.log({'val_loss': loss, 'val_cls_loss': loss_class, 'val_transition_loss': loss_transition, 'val_size_loss': loss_size,
-                   'val_rotation_loss': loss_rotation, 'val_property_loss': loss_property})
 
     return loss
