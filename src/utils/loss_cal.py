@@ -40,8 +40,8 @@ def gaussian_loss(predict, truth):
 
     return loss
 
-def get_padding_mask(seq_length):
-    padding_mask = torch.ones((32, 105), device=device)
+def get_padding_mask(seq_length, batch_size=32):
+    padding_mask = torch.ones((batch_size, 105), device=device)
     for i, length in enumerate(seq_length):
         padding_mask[i, length.item():] = 0.0
 
@@ -71,7 +71,7 @@ def loss_calculate(src, output, src_len, config):
     loss_class = F.cross_entropy(output_class.view(-1, class_num), src_class.to(torch.int64).view(-1), ignore_index=0)
 
     # 计算回归损失
-    mask = get_padding_mask(src_len * (attributes_num - 1))
+    mask = get_padding_mask(src_len * (attributes_num - 1), batch_size)
     loss_property = gaussian_loss(output_attr, src_attr)
     loss_property = loss_property * mask
     # 对损失进行平均
@@ -87,7 +87,7 @@ def loss_calculate(src, output, src_len, config):
     loss = loss_class + loss_property * 0.3
 
     # wandb记录
-    # wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,
-    #            'rotation_loss': loss_rotation, 'property_loss': loss_property})
+    wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,
+               'rotation_loss': loss_rotation, 'property_loss': loss_property})
 
     return loss

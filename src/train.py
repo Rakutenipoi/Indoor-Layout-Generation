@@ -12,120 +12,122 @@ from process.dataset import *
 from utils.loss_cal import *
 from utils.monitor import *
 
-# 系统设置
-#os.chdir(sys.path[0])
-
-# pytorch设置
-np.set_printoptions(suppress=True)
-torch.backends.cudnn.enabled = True
-torch.backends.cudnn.benchmark = True
-torch.set_default_dtype(torch.float32)
-
-# GPU
-if torch.cuda.is_available():
-    dev = "cuda"
-else:
-    dev = "cpu"
-device = torch.device(dev)
-
-# 读取config
-config_path = 'config'
-config_name = 'bedrooms_config.yaml'
-config = read_file_in_path(config_path, config_name)
-
-# 数据集部分参数
-attr_num = config['data']['attributes_num']
-class_num = config['data']['class_num']
-permutation_num = config['data']['permutation_num']
-
-# 训练数据设置
-network_param = config['network']
-training_config = config['training']
-epochs = training_config['epochs']
-batch_size = training_config['batch_size']
-max_sequence_length = config['network']['max_sequence_length']
-lr = training_config['lr']
-checkpoint_freq = training_config['checkpoint_frequency']
-dropout = training_config['dropout']
-
-# wandb设置
-# wandb.init(
-#     # set the wandb project where this run will be logged
-#     project="cofs",
-#
-#     # track hyperparameters and run metadata
-#     config={
-#         "learning_rate": lr,
-#         "architecture": "Transformer",
-#         "dataset": "3D-Front",
-#         "epochs": epochs,
-#         "dropout": dropout,
-#         "batch_size": batch_size,
-#         "max_sequence_length": max_sequence_length,
-#         "class_num": class_num,
-#         "encoder_layers": network_param['n_enc_layers'],
-#         "decoder_layers": network_param['n_dec_layers'],
-#         "heads": network_param['n_heads'],
-#         "dimensions": network_param['dimensions'],
-#         "feed_forward_dimensions": network_param['feed_forward_dimensions'],
-#         "activation": network_param['activation'],
-#     }
-# )
-
-# 训练数据读取
-data_path = config['data']['processed_directory']
-dataset_name = 'dataset.pkl'
-dataset_path = os.path.join(data_path, dataset_name)
-has_dataset = os.path.exists(dataset_path)
-if has_dataset:
-    with open(dataset_path, 'rb') as f:
-        src_dataset = pickle.load(f)
-    print("Dataset loaded")
-else:
-    data_type = 'full_shuffled'
-    full_data = np.load(os.path.join(data_path, f'bedrooms_{data_type}_data.npy'), allow_pickle=True)
-    layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
-    sequences = np.load(os.path.join(data_path, f'bedrooms_{data_type}_sequence.npy'))
-    # 提取数据
-    sequence_index, layout_index, sequences_num = extract_data(full_data)
-    # 数据集转换
-    sequences = sequences.reshape(-1, max_sequence_length)
-    src_dataset = COFSDataset(sequences, layouts, sequences_num)
-    with open(dataset_path, 'wb') as f:
-        pickle.dump(src_dataset, f)
-    print("Dataset saved")
-
-dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
-
-# 创建网络模型
-cofs_model = cofs_network(config).to(device)
-
-# 从上次训练的模型参数开始训练
-load_pretrain = False
-model_param_path = 'model/full_data'
-model_epoch_index = 0
-# 读取该路径的文件
-if (load_pretrain):
-    model_param_files = os.listdir(model_param_path)
-    # 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
-    for file in model_param_files:
-        if file.startswith('bedrooms_model_'):
-            file_epoch_index = int(file.split('.')[0].split('_')[-1])
-            if file_epoch_index > model_epoch_index:
-                model_epoch_index = file_epoch_index
-
-    # 读取模型参数
-    if len(model_param_files) > 0:
-        model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
-        model_param = torch.load(os.path.join(model_param_path, model_param_name))
-        cofs_model.load_state_dict(model_param)
-
-# 优化器
-optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8)
-scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=0)
-scaler = GradScaler()
-
 if __name__ == '__main__':
+    # 系统设置
+    # os.chdir(sys.path[0])
+
+    # pytorch设置
+    np.set_printoptions(suppress=True)
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
+    torch.set_default_dtype(torch.float32)
+
+    # GPU
+    if torch.cuda.is_available():
+        dev = "cuda"
+    else:
+        dev = "cpu"
+    device = torch.device(dev)
+
+    # 读取config
+    config_path = 'config'
+    config_name = 'bedrooms_config.yaml'
+    config = read_file_in_path(config_path, config_name)
+
+    # 数据集部分参数
+    attr_num = config['data']['attributes_num']
+    class_num = config['data']['class_num']
+    permutation_num = config['data']['permutation_num']
+
+    # 训练数据设置
+    network_param = config['network']
+    training_config = config['training']
+    epochs = training_config['epochs']
+    batch_size = training_config['batch_size']
+    max_sequence_length = config['network']['max_sequence_length']
+    lr = training_config['lr']
+    checkpoint_freq = training_config['checkpoint_frequency']
+    dropout = training_config['dropout']
+    weight_decay = training_config['weight_decay']
+
+    # wandb设置
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="cofs",
+
+        # track hyperparameters and run metadata
+        config={
+            "learning_rate": lr,
+            "architecture": "Transformer",
+            "dataset": "3D-Front",
+            "epochs": epochs,
+            "dropout": dropout,
+            "batch_size": batch_size,
+            "max_sequence_length": max_sequence_length,
+            "class_num": class_num,
+            "encoder_layers": network_param['n_enc_layers'],
+            "decoder_layers": network_param['n_dec_layers'],
+            "heads": network_param['n_heads'],
+            "dimensions": network_param['dimensions'],
+            "feed_forward_dimensions": network_param['feed_forward_dimensions'],
+            "activation": network_param['activation'],
+            "weight_decay": weight_decay,
+        }
+    )
+
+    # 训练数据读取
+    data_path = config['data']['processed_directory']
+    dataset_name = 'dataset.pkl'
+    dataset_path = os.path.join(data_path, dataset_name)
+    has_dataset = os.path.exists(dataset_path)
+    if has_dataset:
+        with open(dataset_path, 'rb') as f:
+            src_dataset = pickle.load(f)
+        print("Dataset loaded")
+    else:
+        data_type = 'full_shuffled'
+        full_data = np.load(os.path.join(data_path, f'bedrooms_{data_type}_data.npy'), allow_pickle=True)
+        layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
+        sequences = np.load(os.path.join(data_path, f'bedrooms_{data_type}_sequence.npy'))
+        # 提取数据
+        sequence_index, layout_index, sequences_num = extract_data(full_data)
+        # 数据集转换
+        sequences = sequences.reshape(-1, max_sequence_length)
+        src_dataset = COFSDataset(sequences, layouts, sequences_num)
+        with open(dataset_path, 'wb') as f:
+            pickle.dump(src_dataset, f)
+        print("Dataset saved")
+
+    dataLoader = DataLoader(src_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+
+    # 创建网络模型
+    cofs_model = cofs_network(config).to(device)
+
+    # 从上次训练的模型参数开始训练
+    load_pretrain = False
+    model_param_path = 'model/full_data'
+    model_epoch_index = 0
+    # 读取该路径的文件
+    if (load_pretrain):
+        model_param_files = os.listdir(model_param_path)
+        # 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
+        for file in model_param_files:
+            if file.startswith('bedrooms_model_'):
+                file_epoch_index = int(file.split('.')[0].split('_')[-1])
+                if file_epoch_index > model_epoch_index:
+                    model_epoch_index = file_epoch_index
+
+        # 读取模型参数
+        if len(model_param_files) > 0:
+            model_param_name = f'bedrooms_model_{model_epoch_index}.pth'
+            model_param = torch.load(os.path.join(model_param_path, model_param_name))
+            cofs_model.load_state_dict(model_param)
+
+    # 优化器
+    optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8, weight_decay=weight_decay)
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=0)
+    scaler = GradScaler()
+
     # tqdm
     pbar = tqdm.tqdm(total=epochs)
     print("dataLoader length: ", len(dataLoader))
@@ -138,6 +140,7 @@ if __name__ == '__main__':
         avg_loss = 0
         epoch_time = time.time()
         for step, batch in enumerate(dataLoader):
+            optimizer.zero_grad(set_to_none=True)
             # 读取数据
             src, layout, seq_num = batch
             seq_num = seq_num.to(torch.int32).to(device)
@@ -180,10 +183,9 @@ if __name__ == '__main__':
                 # 计算损失
                 loss = loss_calculate(src, output, tgt_num, config)
             scaler.scale(loss).backward()
-
+            torch.nn.utils.clip_grad_norm_(parameters=cofs_model.parameters(), max_norm=30, norm_type=2)
             scaler.step(optimizer)
             scaler.update()
-            optimizer.zero_grad(set_to_none=True)
             scheduler.step()
 
         # 更新pbar
