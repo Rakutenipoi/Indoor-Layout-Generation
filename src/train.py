@@ -12,12 +12,9 @@ from process.dataset import *
 from utils.loss_cal import *
 from utils.monitor import *
 
-
-
-
 if __name__ == '__main__':
-    # 系统设置
-    # os.chdir(sys.path[0])
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    project_path = os.path.dirname(current_path)
 
     # pytorch设置
     np.set_printoptions(suppress=True)
@@ -33,7 +30,7 @@ if __name__ == '__main__':
     device = torch.device(dev)
 
     # 读取config
-    config_path = 'config'
+    config_path = os.path.join(project_path, 'config')
     config_name = 'bedrooms_config.yaml'
     config = read_file_in_path(config_path, config_name)
 
@@ -110,7 +107,7 @@ if __name__ == '__main__':
 
     # 从上次训练的模型参数开始训练
     load_pretrain = False
-    model_param_path = 'model/full_data'
+    model_param_path = os.path.join(project_path, 'model')
     model_epoch_index = 0
     # 读取该路径的文件
     if (load_pretrain):
@@ -200,6 +197,33 @@ if __name__ == '__main__':
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
+
+        # # 每隔5个epoch进行一次validation
+        # if epoch % 5 == 0:
+        #     cofs_model.eval()
+        #     val_loss = 0
+        #     for step, batch in enumerate(dataLoader):
+        #         # 读取数据
+        #         src, layout, seq_num = batch
+        #         seq_num = seq_num.to(torch.int32).to(device)
+        #         tgt_num = seq_num
+        #         # 读取序列
+        #         src = src.to(device)
+        #         # tgt = src.clone()
+        #         # 读取布局
+        #         layout = layout.to(device).to(torch.float32)
+        #         # 设置requires_grad
+        #         src.requires_grad = False
+        #         layout.requires_grad = True
+        #         # tgt.requires_grad = True
+        #         with autocast():
+        #             # 前向传播
+        #             output = cofs_model(src, layout, src, seq_num, tgt_num)
+        #             # 计算损失
+        #             loss = loss_calculate(src, output, tgt_num, config)
+        #         val_loss += loss.item()
+        #     print(f"Epoch: {epoch}, Validation Loss: {val_loss / len(dataLoader)}")
+        #     cofs_model.train()
 
         # 更新pbar
         pbar.set_postfix(avg_loss=avg_loss / len(dataLoader), time=time.time() - epoch_time)
