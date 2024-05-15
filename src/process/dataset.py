@@ -1,7 +1,4 @@
-import numpy as np
-from torch.utils.data import Dataset
-from .process_dataset import *
-import random
+from src.process.process_dataset import *
 
 class COFSDataset(Dataset):
     def __init__(self, seq, layout, length):

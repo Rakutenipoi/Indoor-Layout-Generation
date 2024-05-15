@@ -87,7 +87,7 @@ def loss_calculate(src, output, src_len, config):
     loss = loss_class + loss_property * 0.3
 
     # wandb记录
-    wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,
-               'rotation_loss': loss_rotation, 'property_loss': loss_property})
+    # wandb.log({'loss': loss, 'cls_loss': loss_class, 'transition_loss': loss_transition, 'size_loss': loss_size,
+    #            'rotation_loss': loss_rotation, 'property_loss': loss_property})
 
     return loss

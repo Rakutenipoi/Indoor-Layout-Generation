@@ -7,10 +7,10 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 import pandas as pd
 from torch.cuda.amp import GradScaler, autocast
 
-from network.network import cofs_network
-from process.dataset import *
-from utils.loss_cal import *
-from utils.monitor import *
+from src.network.network import cofs_network
+from src.process.dataset import *
+from src.utils.loss_cal import *
+from src.utils.monitor import *
 
 if __name__ == '__main__':
     current_path = os.path.dirname(os.path.abspath(__file__))
@@ -52,33 +52,37 @@ if __name__ == '__main__':
     warmup_steps = training_config['warmup_steps']
 
     # wandb设置
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="cofs",
+    wandb_key = config['wandb']['key']
 
-        # track hyperparameters and run metadata
-        config={
-            "learning_rate": lr,
-            "architecture": "Transformer",
-            "dataset": "3D-Front",
-            "epochs": epochs,
-            "dropout": dropout,
-            "batch_size": batch_size,
-            "max_sequence_length": max_sequence_length,
-            "class_num": class_num,
-            "encoder_layers": network_param['n_enc_layers'],
-            "decoder_layers": network_param['n_dec_layers'],
-            "heads": network_param['n_heads'],
-            "dimensions": network_param['dimensions'],
-            "feed_forward_dimensions": network_param['feed_forward_dimensions'],
-            "activation": network_param['activation'],
-            "weight_decay": weight_decay,
-            "warmup_steps": warmup_steps
-        }
-    )
+    # wandb设置
+    # wandb.login(key=wandb_key)
+    # wandb.init(
+    #     # set the wandb project where this run will be logged
+    #     project="cofs",
+    #
+    #     # track hyperparameters and run metadata
+    #     config={
+    #         "learning_rate": lr,
+    #         "architecture": "Transformer",
+    #         "dataset": "3D-Front",
+    #         "epochs": epochs,
+    #         "dropout": dropout,
+    #         "batch_size": batch_size,
+    #         "max_sequence_length": max_sequence_length,
+    #         "class_num": class_num,
+    #         "encoder_layers": network_param['n_enc_layers'],
+    #         "decoder_layers": network_param['n_dec_layers'],
+    #         "heads": network_param['n_heads'],
+    #         "dimensions": network_param['dimensions'],
+    #         "feed_forward_dimensions": network_param['feed_forward_dimensions'],
+    #         "activation": network_param['activation'],
+    #         "weight_decay": weight_decay,
+    #         "warmup_steps": warmup_steps
+    #     }
+    # )
 
     # 训练数据读取
-    data_path = config['data']['processed_directory']
+    data_path = os.path.join(project_path, config['data']['processed_directory'])
     dataset_name = 'dataset.pkl'
     dataset_path = os.path.join(data_path, dataset_name)
     has_dataset = os.path.exists(dataset_path)
@@ -139,8 +143,8 @@ if __name__ == '__main__':
     scaler = GradScaler()
 
     # tqdm
-    pbar = tqdm.tqdm(total=epochs)
     print("dataLoader length: ", len(dataLoader))
+    pbar = tqdm.tqdm(total=epochs)
 
     # 设置为训练模式
     cofs_model.train()
