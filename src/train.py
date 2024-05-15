@@ -3,7 +3,7 @@ import pickle
 from torch.utils.data import DataLoader, SubsetRandomSampler
 import tqdm
 import wandb
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 import pandas as pd
 from torch.cuda.amp import GradScaler, autocast
 
@@ -11,6 +11,9 @@ from network.network import cofs_network
 from process.dataset import *
 from utils.loss_cal import *
 from utils.monitor import *
+
+
+
 
 if __name__ == '__main__':
     # 系统设置
@@ -49,6 +52,7 @@ if __name__ == '__main__':
     checkpoint_freq = training_config['checkpoint_frequency']
     dropout = training_config['dropout']
     weight_decay = training_config['weight_decay']
+    warmup_steps = training_config['warmup_steps']
 
     # wandb设置
     wandb.init(
@@ -72,6 +76,7 @@ if __name__ == '__main__':
             "feed_forward_dimensions": network_param['feed_forward_dimensions'],
             "activation": network_param['activation'],
             "weight_decay": weight_decay,
+            "warmup_steps": warmup_steps
         }
     )
 
@@ -123,9 +128,17 @@ if __name__ == '__main__':
             model_param = torch.load(os.path.join(model_param_path, model_param_name))
             cofs_model.load_state_dict(model_param)
 
+
+    def lr_lambda(lr_step):
+        if lr_step < warmup_steps:
+            return lr * lr_step / warmup_steps
+        else:
+            return lr
+
     # 优化器
     optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8, weight_decay=weight_decay)
-    scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=0)
+    scheduler = LambdaLR(optimizer, lr_lambda)
+
     scaler = GradScaler()
 
     # tqdm
