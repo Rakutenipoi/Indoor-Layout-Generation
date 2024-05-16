@@ -1,4 +1,5 @@
 import pickle
+import sys
 from torch.utils.data import DataLoader, SubsetRandomSampler
 import tqdm
 import wandb
@@ -10,6 +11,8 @@ from network.network import cofs_network
 from process.dataset import *
 from utils.loss_cal import *
 from utils.monitor import *
+
+isDebug = True if sys.gettrace() else False
 
 if __name__ == '__main__':
     current_path = os.path.dirname(os.path.abspath(__file__))
@@ -49,21 +52,30 @@ if __name__ == '__main__':
     dropout = training_config['dropout']
     weight_decay = training_config['weight_decay']
     warmup_steps = training_config['warmup_steps']
+    random_mask = training_config['random_mask']
 
     # wandb设置
+    wandb_enabled = config['wandb']['enable']
     wandb_key = config['wandb']['key']
+    project_name = config['wandb']['project']
+    architecture = config['wandb']['architecture']
+    dataset_name = config['wandb']['dataset']
 
     # wandb设置
-    wandb.login(key=wandb_key)
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="cofs",
+    if not isDebug and wandb_enabled:
+        wandb_mode = 'online'
+    else:
+        wandb_mode = 'disabled'
 
+    wandb.login(key=wandb_key)
+    run = wandb.init(
+        # set the wandb project where this run will be logged
+        project=project_name,
         # track hyperparameters and run metadata
         config={
             "learning_rate": lr,
-            "architecture": "Transformer",
-            "dataset": "3D-Front",
+            "architecture": architecture,
+            "dataset": dataset_name,
             "epochs": epochs,
             "dropout": dropout,
             "batch_size": batch_size,
@@ -77,7 +89,8 @@ if __name__ == '__main__':
             "activation": network_param['activation'],
             "weight_decay": weight_decay,
             "warmup_steps": warmup_steps
-        }
+        },
+        mode=wandb_mode,
     )
 
     # 训练数据读取
@@ -114,11 +127,15 @@ if __name__ == '__main__':
     cofs_model = cofs_network(config).to(device)
 
     # 从上次训练的模型参数开始训练
-    load_pretrain = False
+    load_checkpoint = config['training']['load_checkpoint']
     model_param_path = os.path.join(project_path, 'model')
+    if wandb_mode == 'online' and run.name is not None:
+        model_param_path = os.path.join(model_param_path, run.name)
+    if not os.path.exists(model_param_path):
+        os.makedirs(model_param_path)
     model_epoch_index = 0
     # 读取该路径的文件
-    if (load_pretrain):
+    if (load_checkpoint):
         model_param_files = os.listdir(model_param_path)
         # 从文件名bedrooms_model_后面的数字得到上次训练的epoch数
         for file in model_param_files:
@@ -173,24 +190,25 @@ if __name__ == '__main__':
             layout.requires_grad = True
             # tgt.requires_grad = True
 
-            # # src随机mask
-            # mask = torch.ones_like(src)
-            # for i in range(batch_size):
-            #     num = seq_num[i, 0]
-            #     if num < 2:
-            #         continue
-            #     else:
-            #         # 随机mask的数量为1到min(2, num)之间
-            #         mask_min_num = 1
-            #         mask_max_num = 2
-            #         mask_rand_num = np.random.randint(mask_min_num, min(mask_max_num, num) + 1, 1)
-            #         # 随机mask的位置
-            #         mask_rand_pos = np.random.randint(0, num - 1, mask_rand_num)
-            #         # mask
-            #         for pos in mask_rand_pos:
-            #             mask[i, pos * attr_num: (pos + 1) * attr_num] = 0
-            # # mask与src对应位置相乘
-            # src = src * mask
+            # src随机mask
+            if random_mask:
+                mask = torch.ones_like(src)
+                for i in range(batch_size):
+                    num = seq_num[i, 0]
+                    if num < 2:
+                        continue
+                    else:
+                        # 随机mask的数量为1到min(2, num)之间
+                        mask_min_num = 1
+                        mask_max_num = 2
+                        mask_rand_num = np.random.randint(mask_min_num, min(mask_max_num, num) + 1, 1)
+                        # 随机mask的位置
+                        mask_rand_pos = np.random.randint(0, num - 1, mask_rand_num)
+                        # mask
+                        for pos in mask_rand_pos:
+                            mask[i, pos * attr_num: (pos + 1) * attr_num] = 0
+                # mask与src对应位置相乘
+                src = src * mask
 
             # 设置requires_grad为True
             src.requires_grad = True
@@ -233,24 +251,22 @@ if __name__ == '__main__':
                         # 计算损失
                         loss = loss_calculate(src, output, tgt_num, config)
                     val_loss += loss.item()
-                wandb.log({'val_loss': loss})
+
+                wandb.log(data={'val_loss': loss}, commit=False)
+
             cofs_model.train()
 
         # 更新pbar
         avg_loss /= len(train_dataLoader)
         pbar.set_postfix(avg_loss=avg_loss, time=time.time() - epoch_time)
         pbar.update(1)
-        wandb.log({'train_loss': avg_loss})
+        wandb.log(data={'train_loss': avg_loss})
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数
-            if (not os.path.exists(model_param_path)):
-                os.makedirs(model_param_path)
             torch.save(cofs_model, model_param_path + f'/bedrooms_model_{epoch}.pth')
             print(f"Model saved at Epoch: {epoch}")
 
-    if (not os.path.exists(model_param_path)):
-        os.makedirs(model_param_path)
     torch.save(cofs_model, model_param_path + f'/bedrooms_model_{epochs}.pth')
     wandb.finish()
 

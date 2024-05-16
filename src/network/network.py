@@ -78,14 +78,17 @@ class cofs_network(nn.Module):
 
         self.sampler = Sampler(config)
 
-    def get_padding_mask(self, seq_length):
-        padding_mask = torch.zeros((self.batch_size, self.max_sequence_length + 1), device=device)
+    def get_padding_mask(self, seq_length, batch_size=32):
+        padding_mask = torch.zeros((batch_size, self.max_sequence_length + 1), device=device)
         for i, length in enumerate(seq_length):
             padding_mask[i, length.item():] = -torch.inf
 
         return padding_mask
 
     def forward(self, sequence, layout_image, last_sequence, seq_length, last_seq_length):
+        # Current Sequence Batch Size
+        current_batch_size = sequence.size(0)
+
         # Boundary Encoder
         layout_feature = self.boundary_encoder(layout_image.unsqueeze(1).squeeze(-1))
         layout_feature = layout_feature.unsqueeze(1)
@@ -102,7 +105,7 @@ class cofs_network(nn.Module):
         # Input Blend & Concatenate
         ## sequence
         sequence = sequence + relative_position + object_index
-        sos = self.embedding.get_embedding(torch.tensor([self.start_token], device=device), self.batch_size)
+        sos = self.embedding.get_embedding(torch.tensor([self.start_token], device=device), current_batch_size)
         sequence = torch.concat((layout_feature, sequence), dim=1)
         ## last_sequence
         last_sequence = last_sequence + absolute_position
@@ -111,8 +114,8 @@ class cofs_network(nn.Module):
         # Mask
         seq_length = seq_length * self.attributes_num
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(self.max_sequence_length + 1, device=device)
-        src_key_padding_mask = self.get_padding_mask(seq_length + 1)
-        tgt_key_padding_mask = self.get_padding_mask(last_seq_length * self.attributes_num + 1)
+        src_key_padding_mask = self.get_padding_mask(seq_length + 1, current_batch_size)
+        tgt_key_padding_mask = self.get_padding_mask(last_seq_length * self.attributes_num + 1, current_batch_size)
 
         # Transformer
         decoder_output = self.transformer(sequence, last_sequence, tgt_mask=tgt_mask,
@@ -122,10 +125,10 @@ class cofs_network(nn.Module):
         # 此时的decoder_output的尺寸为[batch_size, sequence_size + 1, dimension_size]
         ## 我们需要将这个尺寸转化为[batch_size, attr_size, dimension_size]
         ## 将输入张量形状转换为[batch_size, (sequence_size + 1) * dimension_size]
-        decoder_output = decoder_output.view(self.batch_size, -1)
+        decoder_output = decoder_output.view(current_batch_size, -1)
         decoder_output = self.decoder_to_output(decoder_output)
         ## 将输出张量形状转换为[batch_size, attr_size, dimension_size]
-        decoder_output = decoder_output.view(self.batch_size, -1, self.dimensions)
+        decoder_output = decoder_output.view(current_batch_size, -1, self.dimensions)
 
         # Output Sample
         output = self.sampler(decoder_output)
