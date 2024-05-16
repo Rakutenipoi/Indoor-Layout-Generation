@@ -3,9 +3,9 @@ import torch.nn as nn
 import torchvision.models as models
 import time
 
-from src.network.boundary_encoder import get_boundary_encoder
-from src.network.embedding import Embedding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
-from src.network.sampling import Sampler
+from network.boundary_encoder import get_boundary_encoder
+from network.embedding import Embedding, RelativePositionEncoding, ObjectIndexEncoding, AbsolutePositionEncoding
+from network.sampling import Sampler
 
 # GPU
 if torch.cuda.is_available():

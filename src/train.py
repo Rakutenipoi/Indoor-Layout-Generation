@@ -246,11 +246,11 @@ if __name__ == '__main__':
             # 保存训练参数
             if (not os.path.exists(model_param_path)):
                 os.makedirs(model_param_path)
-            torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epoch}.pth')
+            torch.save(cofs_model, model_param_path + f'/bedrooms_model_{epoch}.pth')
             print(f"Model saved at Epoch: {epoch}")
 
     if (not os.path.exists(model_param_path)):
         os.makedirs(model_param_path)
-    torch.save(cofs_model.state_dict(), model_param_path + f'/bedrooms_model_{epochs}.pth')
+    torch.save(cofs_model, model_param_path + f'/bedrooms_model_{epochs}.pth')
     wandb.finish()
 
