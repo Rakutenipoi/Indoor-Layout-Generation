@@ -38,10 +38,10 @@ class Sampler(nn.Module):
 
         self.mask = torch.zeros(self.max_len, device=device)
         self.mask[::self.attributes_num] = 1
-        self.mask = self.mask.unsqueeze(0).unsqueeze(-1)
+        self.mask = self.mask.reshape(1, -1, 1)
         self.inv_mask = torch.ones(self.max_len, device=device)
         self.inv_mask[::self.attributes_num] = 0
-        self.inv_mask = self.inv_mask.unsqueeze(0).unsqueeze(-1)
+        self.inv_mask = self.inv_mask.reshape(1, -1, 1)
 
 
     def forward(self, x):
