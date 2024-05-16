@@ -84,6 +84,6 @@ def loss_calculate(src, output, src_len, config):
     loss_property = torch.sum(loss_property, dim=-1).mean()
 
     # 总损失
-    loss = loss_class + loss_property * 0.3
+    loss = loss_class + loss_property
 
     return loss

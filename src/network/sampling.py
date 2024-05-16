@@ -27,30 +27,31 @@ class Sampler(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(self.hidden_output_dimension, self.output_dimension),
             nn.ReLU(),
+            nn.Softmax(dim=-1),
         )
 
         self.discrete_layer = nn.Sequential(
             nn.Linear(self.input_dimension, self.class_num),
             #nn.Softmax(dim=-1),
-            #nn.ReLU(),
+            nn.ReLU(),
         )
 
         self.mask = torch.zeros(self.max_len, device=device)
         self.mask[::self.attributes_num] = 1
-        self.mask = self.mask.unsqueeze(0).expand(self.max_len, -1)
+        self.mask = self.mask.unsqueeze(0).unsqueeze(-1)
         self.inv_mask = torch.ones(self.max_len, device=device)
         self.inv_mask[::self.attributes_num] = 0
-        self.inv_mask = self.inv_mask.unsqueeze(0).expand(self.max_len, -1)
+        self.inv_mask = self.inv_mask.unsqueeze(0).unsqueeze(-1)
 
 
     def forward(self, x):
         discrete_layer = self.discrete_layer(x)
         discrete_layer = discrete_layer.reshape(-1, self.max_len, self.class_num)
-        discrete_layer = torch.matmul(self.mask, discrete_layer)
+        discrete_layer = self.mask * discrete_layer
 
         continue_layer = self.continue_layers(x)
         continue_layer = continue_layer.reshape(-1, self.max_len, self.output_dimension)
-        continue_layer = torch.matmul(self.inv_mask, continue_layer)
+        continue_layer = self.inv_mask * continue_layer
 
         x = discrete_layer + continue_layer
 

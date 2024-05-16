@@ -41,7 +41,7 @@ class Embedding(nn.Module):
         return float_embedding.reshape(-1, self.E_dims).float()
 
     def class_embedding(self, x):
-        out = self.E_class.index_select(0, x)
+        out = self.E_class.index_select(0, x * self.embedding_mask.to(torch.int32))
         return out
 
     def get_embedding(self, int_token, batch_size):
@@ -53,7 +53,7 @@ class Embedding(nn.Module):
         sequence_legnth = x.size(1)
 
         # 对整数类型的数据使用 Embedding
-        int_embedding = [self.class_embedding(x[i, :].to(torch.int64)) * self.embedding_mask.unsqueeze(-1) for i in range(batch_size)]
+        int_embedding = [self.class_embedding(x[i, :].to(torch.int32)) * self.embedding_mask.unsqueeze(-1) for i in range(batch_size)]
         int_embedding = torch.stack(int_embedding, dim=0)
 
         # 对浮点类型的数据使用 Sinusoidal Encoding
