@@ -22,18 +22,16 @@ class Sampler(nn.Module):
 
         self.continue_layers = nn.Sequential(
             nn.Linear(self.input_dimension, self.hidden_input_dimension),
-            nn.LeakyReLU(),
             nn.Linear(self.hidden_input_dimension, self.hidden_output_dimension),
-            nn.LeakyReLU(),
             nn.Linear(self.hidden_output_dimension, self.output_dimension),
             nn.ReLU(),
-            nn.Softmax(dim=-1),
+            # nn.Softmax(dim=-1),
         )
 
         self.discrete_layer = nn.Sequential(
             nn.Linear(self.input_dimension, self.class_num),
             #nn.Softmax(dim=-1),
-            nn.ReLU(),
+            # nn.ReLU(),
         )
 
         self.mask = torch.zeros(self.max_len, device=device)

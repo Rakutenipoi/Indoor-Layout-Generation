@@ -106,8 +106,8 @@ class ObjectIndexEncoding(nn.Module):
 class AbsolutePositionEncoding(nn.Module):
     def __init__(self, object_max_num, attributes_num=8, E_dims=256):
         super().__init__()
-        self.E_absolute_position = nn.Parameter(torch.randn(object_max_num, E_dims))
-        self.relative_index = torch.arange(object_max_num * attributes_num, device=device, dtype=torch.int32) // attributes_num
+        self.E_absolute_position = nn.Parameter(torch.randn(object_max_num * attributes_num, E_dims))
+        self.relative_index = torch.arange(object_max_num * attributes_num, device=device, dtype=torch.int32)
         self.E_dims = E_dims
         self.attributes_num = attributes_num
 

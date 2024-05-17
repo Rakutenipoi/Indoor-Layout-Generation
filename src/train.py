@@ -118,8 +118,11 @@ if __name__ == '__main__':
 
     # 对src_dataset进行划分
     train_size = int(0.8 * len(src_dataset))
-    val_size = len(src_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(src_dataset, [train_size, val_size])
+    test_size = len(src_dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(src_dataset, [train_size, test_size], generator=torch.Generator().manual_seed(42))
+    train_size = int(0.8 * len(train_dataset))
+    val_size = len(train_dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42))
     train_dataLoader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     val_dataLoader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 

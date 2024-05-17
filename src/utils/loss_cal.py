@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.distributions as dist
 import wandb
 import numpy as np
 
@@ -16,21 +17,24 @@ device = torch.device(dev)
 def gaussian_loss(predict, truth):
     # 计算高斯分布的均值和方差
     mu = predict[:, :, :, 1]  # 预测结果的均值
-    sigma = predict[:, :, :, 2]  # 预测结果的方差
+    v = predict[:, :, :, 2]  # 预测结果的方差
 
     # 添加小量，防止除零
     epsilon = 1e-6
-    sigma = torch.clamp(sigma, min=epsilon)
+    v = torch.clamp(v, min=epsilon)
 
-    # 计算高斯分布的概率密度函数值
-    gaussian_prob = torch.exp(-0.5 * ((truth.unsqueeze(-1) - mu) / sigma) ** 2) / (sigma * (2 * torch.pi) ** 0.5)
+    # 计算logistic分布的概率密度函数值
+    gaussian_prob = torch.exp(-0.5 * torch.pow(truth.unsqueeze(-1) - mu, 2) / v) / (torch.sqrt(v * 2 * torch.pi))
+    # diff_x = (truth.unsqueeze(-1) - mu) / v * 0.5
+    # logistic_prob = 1 / (v * torch.pow(torch.exp(diff_x) + torch.exp(-diff_x), 2))
 
     # 计算每个高斯分布的权重
     weight = predict[:, :, :, 0]  # 预测结果的权重
     weight = F.softmax(weight, dim=-1)
 
     # 将预测结果按照最后一个维度求和，得到所有高斯分布的混合概率密度函数值
-    mixed_gaussian_prob = torch.sum(gaussian_prob * weight, dim=-1)
+    prob = gaussian_prob * weight
+    mixed_gaussian_prob = torch.sum(prob, dim=-1)
 
     # 添加小量，防止取对数时出现NaN
     mixed_gaussian_prob = torch.clamp(mixed_gaussian_prob, min=epsilon)
@@ -75,12 +79,6 @@ def loss_calculate(src, output, src_len, config):
     loss_property = gaussian_loss(output_attr, src_attr)
     loss_property = loss_property * mask
     # 对损失进行平均
-    loss_transition = [loss_property[:, start : start + 3] for start in range(0, max_len - object_max_num, attributes_num - 1)]
-    loss_transition = torch.sum(torch.cat(loss_transition, dim=1), dim=-1).mean()
-    loss_size = [loss_property[:, start : start + 3] for start in range(3, max_len - object_max_num, attributes_num - 1)]
-    loss_size = torch.sum(torch.cat(loss_size, dim=1), dim=-1).mean()
-    loss_rotation = [loss_property[:, start : start + 3] for start in range(6, max_len - object_max_num, attributes_num - 1)]
-    loss_rotation = torch.sum(torch.cat(loss_rotation, dim=1), dim=-1).mean()
     loss_property = torch.sum(loss_property, dim=-1).mean()
 
     # 总损失
