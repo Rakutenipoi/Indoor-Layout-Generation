@@ -255,7 +255,8 @@ if __name__ == '__main__':
                         loss = loss_calculate(src, output, tgt_num, config)
                     val_loss += loss.item()
 
-                wandb.log(data={'val_loss': loss}, commit=False)
+                val_loss /= len(val_dataLoader)
+                wandb.log(data={'val_loss': val_loss}, commit=False)
 
             cofs_model.train()
 
