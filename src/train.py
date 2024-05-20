@@ -182,16 +182,17 @@ if __name__ == '__main__':
             # 读取数据
             src, layout, seq_num = batch
             seq_num = seq_num.to(torch.int32).to(device)
-            tgt_num = seq_num
+            tgt_num = seq_num - 1
             # 读取序列
             src = src.to(device)
-            # tgt = src.clone()
+            tgt = src.clone()
+            tgt[:, :-attr_num] = 0.0
             # 读取布局
             layout = layout.to(device).to(torch.float32)
             # 设置requires_grad
             src.requires_grad = False
             layout.requires_grad = True
-            # tgt.requires_grad = True
+            tgt.requires_grad = True
 
             # src随机mask
             if random_mask:
@@ -218,7 +219,7 @@ if __name__ == '__main__':
 
             with autocast():
                 # 前向传播
-                output = cofs_model(src, layout, src, seq_num, tgt_num)
+                output = cofs_model(src, layout, tgt, tgt_num, tgt_num)
                 # 计算损失
                 loss = loss_calculate(src, output, tgt_num, config)
 
