@@ -8,9 +8,7 @@ class ResNet18(nn.Module):
         super(ResNet18, self).__init__()
         self.feature_size = feature_size
 
-        self.boundary_encoder = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-
-        # 暂时先不考虑freeze_batch_norm的情况
+        self.boundary_encoder = models.resnet18(weights=ResNet18_Weights.DEFAULT, pretrained=True, freeze_bn=freeze_bn)
 
         self.boundary_encoder.conv1 = nn.Conv2d(
             input_channels,

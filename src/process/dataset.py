@@ -14,6 +14,8 @@ class COFSDataset(Dataset):
         layout = self.layout[idx]
         length = self.length[idx]
 
+        layout = layout / 255.0
+
         return seq, layout, length
 
 
