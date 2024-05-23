@@ -54,6 +54,9 @@ if __name__ == '__main__':
     dropout = training_config['dropout']
     weight_decay = training_config['weight_decay']
     warmup_steps = training_config['warmup_steps']
+    decay_steps = training_config['decay_steps']
+    decay_final_steps = training_config['decay_final_steps']
+    final_lr = training_config['final_lr']
     random_mask = training_config['random_mask']
 
     # wandb设置
@@ -154,8 +157,12 @@ if __name__ == '__main__':
     def lr_lambda(lr_step):
         if lr_step < warmup_steps:
             return lr * lr_step / warmup_steps
-        else:
+        elif lr_step > decay_final_steps:
+            return final_lr
+        elif lr_step < decay_steps:
             return lr
+        else:
+            return final_lr + (decay_final_steps - lr_step) / (decay_final_steps - decay_steps) * (lr - final_lr)
 
     # 优化器
     optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8, weight_decay=weight_decay)

@@ -46,7 +46,7 @@ class Embedding(nn.Module):
 
     def get_embedding(self, int_token, batch_size):
         int_embedding = self.E_class.index_select(0, int_token)
-        return self.dropout(int_embedding.expand(batch_size, 1, self.E_dims))
+        return int_embedding.expand(batch_size, 1, self.E_dims)
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -63,7 +63,7 @@ class Embedding(nn.Module):
         # 合并整数类型和浮点类型的嵌入向量
         embedding = int_embedding + float_embedding
 
-        return self.dropout(embedding)
+        return embedding
 
 class RelativePositionEncoding(nn.Module):
     def __init__(self, attributes_num=8, E_dims=256, object_max_num=15):
