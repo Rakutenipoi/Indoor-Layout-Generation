@@ -192,7 +192,7 @@ def get_losses(tgt_y, output, config, tgt_y_len):
     # 将src_class转为one-hot编码
     src_class = torch.nn.functional.one_hot(src_class.to(torch.int64), num_classes=class_num)
     # label smoothing
-    src_class = src_class * 0.9 + 0.1 / class_num
+    # src_class = src_class * 0.9 + 0.1 / class_num
     label_loss = cross_entropy_loss(output_class, src_class)
 
     translation_loss = dmll(translations_x, tgt_y_translations_x)
@@ -203,15 +203,11 @@ def get_losses(tgt_y, output, config, tgt_y_len):
     size_loss += dmll(sizes_z, tgt_y_sizes_z)
     angle_loss = dmll(angles, tgt_y_angles)
 
-    property_loss = translation_loss + size_loss + angle_loss
     mask = get_padding_mask(seq_len=tgt_y_len, batch_size=tgt_y.size(0), max_len=max_len // attributes_num)
-    property_loss = property_loss * mask
-    property_loss = torch.sum(property_loss, dim=-1).mean()
-    label_loss = label_loss * mask
-    label_loss = torch.sum(label_loss, dim=-1).mean()
+    label_loss = torch.sum(label_loss * mask, dim=-1) / tgt_y_len
+    translation_loss = torch.sum(translation_loss * mask, dim=-1) / tgt_y_len
+    size_loss = torch.sum(size_loss * mask, dim=-1) / tgt_y_len
+    angle_loss = torch.sum(angle_loss * mask, dim=-1) / tgt_y_len
 
-    loss = label_loss + property_loss
-
-
-    return loss
+    return label_loss.mean(), translation_loss.mean(), size_loss.mean(), angle_loss.mean()
 

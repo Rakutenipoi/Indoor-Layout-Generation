@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     # 迭代训练
     for epoch in range(model_epoch_index + 1, epochs):
-        avg_loss = 0
+        avg_loss, avg_label_loss, avg_translation_loss, avg_size_loss, avg_angle_loss = 0, 0, 0, 0, 0
         epoch_time = time.time()
         for step, batch in enumerate(train_dataLoader):
             optimizer.zero_grad(set_to_none=True)
@@ -216,9 +216,14 @@ if __name__ == '__main__':
                 output = cofs_model(src, layout, tgt, src_len, tgt_len)
                 # 计算损失
                 # loss = loss_calculate(tgt_y, output, tgt_len, config)
-                loss = get_losses(tgt_y, output, config, tgt_y_len)
+                label_loss, translation_loss, size_loss, angle_loss = get_losses(tgt_y, output, config, tgt_y_len)
 
+            loss = label_loss + translation_loss + size_loss + angle_loss
             avg_loss += loss.item()
+            avg_label_loss += label_loss.item()
+            avg_translation_loss += translation_loss.item()
+            avg_size_loss += size_loss.item()
+            avg_angle_loss += angle_loss.item()
             scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(parameters=cofs_model.parameters(), max_norm=30, norm_type=2)
             scaler.step(optimizer)
@@ -229,7 +234,7 @@ if __name__ == '__main__':
         if epoch % 5 == 0:
             with torch.no_grad():
                 cofs_model.eval()
-                val_loss = 0
+                val_loss, val_label_loss, val_translation_loss, val_size_loss, val_angle_loss = 0, 0, 0, 0, 0
                 for step, batch in enumerate(val_dataLoader):
                     # 读取数据
                     # 读取数据
@@ -248,19 +253,33 @@ if __name__ == '__main__':
                         output = cofs_model(src, layout, tgt, src_len, tgt_len)
                         # 计算损失
                         # loss = loss_calculate(tgt_y, output, tgt_len, config)
-                        loss = get_losses(tgt_y, output, config, tgt_y_len)
+                        label_loss, translation_loss, size_loss, angle_loss = get_losses(tgt_y, output, config, tgt_y_len)
                     val_loss += loss.item()
+                    val_label_loss += label_loss.item()
+                    val_translation_loss += translation_loss.item()
+                    val_size_loss += size_loss.item()
+                    val_angle_loss += angle_loss.item()
 
                 val_loss /= len(val_dataLoader)
-                wandb.log(data={'val_loss': val_loss}, commit=False)
+                val_label_loss /= len(val_dataLoader)
+                val_translation_loss /= len(val_dataLoader)
+                val_size_loss /= len(val_dataLoader)
+                val_angle_loss /= len(val_dataLoader)
+                wandb.log(data={'val_loss': val_loss, 'val_label_loss': val_label_loss, 'val_translation_loss': val_translation_loss,
+                                'val_size_loss': val_size_loss, 'val_angle_loss': val_angle_loss}, commit=False)
 
             cofs_model.train()
 
         # 更新pbar
         avg_loss /= len(train_dataLoader)
+        avg_label_loss /= len(train_dataLoader)
+        avg_translation_loss /= len(train_dataLoader)
+        avg_size_loss /= len(train_dataLoader)
+        avg_angle_loss /= len(train_dataLoader)
         pbar.set_postfix(avg_loss=avg_loss, time=time.time() - epoch_time)
         pbar.update(1)
-        wandb.log(data={'train_loss': avg_loss})
+        wandb.log(data={'train_loss': avg_loss, 'label_loss': avg_label_loss, 'translation_loss': avg_translation_loss,
+                        'size_loss': avg_size_loss, 'angle_loss': avg_angle_loss})
 
         if epoch % checkpoint_freq == 0:
             # 保存训练参数
