@@ -187,7 +187,8 @@ if __name__ == '__main__':
             batch = [b.to(device) for b in batch]
             layout, src, tgt, tgt_y, src_len = batch
             layout = layout.to(torch.float32)
-            tgt_len = src_len - 1
+            src_len = src_len * attr_num
+            tgt_len = src_len - attr_num
             tgt_y_len = tgt_len
             # 设置requires_grad
             src.requires_grad = False

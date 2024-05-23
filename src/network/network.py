@@ -86,7 +86,7 @@ class cofs_network(nn.Module):
 
         return padding_mask
 
-    def forward(self, sequence, layout_image, last_sequence, src_length, tgt_length):
+    def forward(self, sequence, layout_image, last_sequence, seq_length, tgt_length):
         # Current Sequence Batch Size
         current_batch_size = sequence.size(0)
 
@@ -111,10 +111,9 @@ class cofs_network(nn.Module):
         last_sequence = last_sequence + absolute_position
 
         # Mask
-        seq_length = src_length * self.attributes_num
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(self.max_sequence_length, device=device)
         src_key_padding_mask = self.get_padding_mask(seq_length + 1, self.max_sequence_length + 1, current_batch_size)
-        tgt_key_padding_mask = self.get_padding_mask(tgt_length * self.attributes_num, self.max_sequence_length, current_batch_size)
+        tgt_key_padding_mask = self.get_padding_mask(tgt_length, self.max_sequence_length, current_batch_size)
 
         # Transformer
         decoder_output = self.transformer(sequence, last_sequence, tgt_mask=tgt_mask,
