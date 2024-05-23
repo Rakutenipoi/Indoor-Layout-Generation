@@ -204,7 +204,7 @@ def get_losses(tgt_y, output, config, tgt_y_len):
     angle_loss = dmll(angles, tgt_y_angles)
 
     property_loss = translation_loss + size_loss + angle_loss
-    mask = get_padding_mask(seq_len=tgt_y_len, max_len=max_len // attributes_num)
+    mask = get_padding_mask(seq_len=tgt_y_len, batch_size=tgt_y.size(0), max_len=max_len // attributes_num)
     property_loss = property_loss * mask
     property_loss = torch.sum(property_loss, dim=-1).mean()
     label_loss = label_loss * mask
