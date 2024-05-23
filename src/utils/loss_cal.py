@@ -57,8 +57,8 @@ def loss_calculate(src, output, src_len, config):
     # config
     attributes_num = config['data']['attributes_num']
     object_max_num = config['data']['object_max_num']
-    class_num = config['data']['class_num'] + 2
-    max_len = attributes_num * object_max_num
+    class_num = config['data']['class_num'] + 3
+    max_len = config['network']['max_sequence_length']
     sample_num = config['network']['sampler']['output_dimension'] // 3
     batch_size = src.size(0)
 
@@ -83,7 +83,7 @@ def loss_calculate(src, output, src_len, config):
     loss_class = F.cross_entropy(output_class, src_class.to(torch.int64), reduction='sum') / batch_size
 
     # 计算回归损失
-    mask = get_padding_mask(src_len * (attributes_num - 1), batch_size)
+    mask = get_padding_mask(src_len * (attributes_num - 1), batch_size, max_len - max_len // attributes_num)
     loss_property = gaussian_loss(output_attr, src_attr)
     loss_property = loss_property * mask
 

@@ -28,12 +28,13 @@ class cofs_network(nn.Module):
         self.activation = config['network']['activation']
         ## data
         self.attributes_num = config['data']['attributes_num']
-        self.object_max_num = config['data']['object_max_num']
+        self.object_max_num = config['data']['object_max_num'] + 2
         self.max_sequence_length = self.attributes_num * self.object_max_num
-        self.class_num = config['data']['class_num'] + 2 # 需要预留两个额外的类别用于标记起始与结束
+        self.class_num = config['data']['class_num'] + 3
         self.batch_size = config['training']['batch_size']
-        self.start_token = config['network']['start_token']
-        self.end_token = config['network']['end_token']
+        self.start_token = config['data']['start_token']
+        self.end_token = config['data']['end_token']
+        self.padding_token = config['data']['padding_token']
 
         # 用max_sequence_length替代sequence_length
         self.embedding = Embedding(
@@ -74,18 +75,18 @@ class cofs_network(nn.Module):
             self.dimensions,
         )
 
-        self.decoder_to_output = nn.Linear((self.max_sequence_length + 1) * self.dimensions, self.max_sequence_length * self.dimensions)
+        self.decoder_to_output = nn.Linear((self.max_sequence_length) * self.dimensions, self.max_sequence_length * self.dimensions)
 
         self.sampler = Sampler(config)
 
-    def get_padding_mask(self, seq_length, batch_size=32):
-        padding_mask = torch.zeros((batch_size, self.max_sequence_length + 1), device=device)
+    def get_padding_mask(self, seq_length, seq_max_len, batch_size=32):
+        padding_mask = torch.zeros((batch_size, seq_max_len), device=device)
         for i, length in enumerate(seq_length):
             padding_mask[i, length.item():] = -torch.inf
 
         return padding_mask
 
-    def forward(self, sequence, layout_image, last_sequence, seq_length, last_seq_length):
+    def forward(self, sequence, layout_image, last_sequence, src_length, tgt_length):
         # Current Sequence Batch Size
         current_batch_size = sequence.size(0)
 
@@ -105,17 +106,15 @@ class cofs_network(nn.Module):
         # Input Blend & Concatenate
         ## sequence
         sequence = sequence + relative_position + object_index
-        sos = self.embedding.get_embedding(torch.tensor([self.start_token], device=device), current_batch_size)
         sequence = torch.concat((layout_feature, sequence), dim=1)
         ## last_sequence
         last_sequence = last_sequence + absolute_position
-        last_sequence = torch.concat((sos, last_sequence), dim=1)
 
         # Mask
-        seq_length = seq_length * self.attributes_num
-        tgt_mask = nn.Transformer.generate_square_subsequent_mask(self.max_sequence_length + 1, device=device)
-        src_key_padding_mask = self.get_padding_mask(seq_length + 1, current_batch_size)
-        tgt_key_padding_mask = self.get_padding_mask(last_seq_length * self.attributes_num + 1, current_batch_size)
+        seq_length = src_length * self.attributes_num
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(self.max_sequence_length, device=device)
+        src_key_padding_mask = self.get_padding_mask(seq_length + 1, self.max_sequence_length + 1, current_batch_size)
+        tgt_key_padding_mask = self.get_padding_mask(tgt_length * self.attributes_num, self.max_sequence_length, current_batch_size)
 
         # Transformer
         decoder_output = self.transformer(sequence, last_sequence, tgt_mask=tgt_mask,

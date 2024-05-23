@@ -17,8 +17,8 @@ class Sampler(nn.Module):
         self.hidden_output_dimension = config['network']['sampler']['hidden_output_dimension']
         self.output_dimension = config['network']['sampler']['output_dimension']
         self.attributes_num = config['data']['attributes_num']
-        self.object_max_num = config['data']['object_max_num']
-        self.max_len = self.attributes_num * self.object_max_num
+        self.object_max_num = config['data']['object_max_num'] + 2
+        self.max_len = config['network']['max_sequence_length']
 
         self.continue_layers = nn.Sequential(
             nn.Linear(self.input_dimension, self.hidden_input_dimension),

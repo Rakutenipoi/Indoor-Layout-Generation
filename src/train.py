@@ -23,6 +23,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
     torch.set_default_dtype(torch.float32)
+    torch.set_printoptions(profile="full")
 
     # GPU
     if torch.cuda.is_available():
@@ -103,15 +104,10 @@ if __name__ == '__main__':
             src_dataset = pickle.load(f)
         print("Dataset loaded")
     else:
-        data_type = 'full_shuffled'
-        full_data = np.load(os.path.join(data_path, f'bedrooms_{data_type}_data.npy'), allow_pickle=True)
-        layouts = np.load(os.path.join(data_path, f'bedrooms_{data_type}_layout.npy'))
-        sequences = np.load(os.path.join(data_path, f'bedrooms_{data_type}_sequence.npy'))
-        # 提取数据
-        sequence_index, layout_index, sequences_num = extract_data(full_data)
-        # 数据集转换
-        sequences = sequences.reshape(-1, max_sequence_length)
-        src_dataset = COFSDataset(sequences, layouts, sequences_num)
+        data_name = 'dataset_1.pkl'
+        with open(os.path.join(data_path, data_name), 'rb') as f:
+            src_data = pickle.load(f)
+        src_dataset = COFSDataset(src_data, config['data'])
         with open(dataset_path, 'wb') as f:
             pickle.dump(src_dataset, f)
         print("Dataset saved")
@@ -180,25 +176,22 @@ if __name__ == '__main__':
         for step, batch in enumerate(train_dataLoader):
             optimizer.zero_grad(set_to_none=True)
             # 读取数据
-            src, layout, seq_num = batch
-            seq_num = seq_num.to(torch.int32).to(device)
-            tgt_num = seq_num - 1
-            # 读取序列
-            src = src.to(device)
-            tgt = src.clone()
-            tgt[:, :-attr_num] = 0.0
-            # 读取布局
-            layout = layout.to(device).to(torch.float32)
+            batch = [b.to(device) for b in batch]
+            layout, src, tgt, tgt_y, src_len = batch
+            layout = layout.to(torch.float32)
+            tgt_len = src_len - 1
+            tgt_y_len = tgt_len
             # 设置requires_grad
             src.requires_grad = False
             layout.requires_grad = True
             tgt.requires_grad = True
+            tgt_y.requires_grad = False
 
             # src随机mask
             if random_mask:
                 mask = torch.ones_like(src)
                 for i in range(batch_size):
-                    num = seq_num[i, 0]
+                    num = src_len[i, 0]
                     if num < 2:
                         continue
                     else:
@@ -219,9 +212,9 @@ if __name__ == '__main__':
 
             with autocast():
                 # 前向传播
-                output = cofs_model(src, layout, tgt, tgt_num, tgt_num)
+                output = cofs_model(src, layout, tgt, src_len, tgt_len)
                 # 计算损失
-                loss = loss_calculate(src, output, tgt_num, config)
+                loss = loss_calculate(tgt_y, output, tgt_len, config)
 
             avg_loss += loss.item()
             scaler.scale(loss).backward()
@@ -237,23 +230,22 @@ if __name__ == '__main__':
                 val_loss = 0
                 for step, batch in enumerate(val_dataLoader):
                     # 读取数据
-                    src, layout, seq_num = batch
-                    seq_num = seq_num.to(torch.int32).to(device)
-                    tgt_num = seq_num
-                    # 读取序列
-                    src = src.to(device)
-                    # tgt = src.clone()
-                    # 读取布局
-                    layout = layout.to(device).to(torch.float32)
+                    # 读取数据
+                    batch = [b.to(device) for b in batch]
+                    layout, src, tgt, tgt_y, src_len = batch
+                    layout = layout.to(torch.float32)
+                    tgt_len = src_len - 1
+                    tgt_y_len = tgt_len
                     # 设置requires_grad
                     src.requires_grad = False
                     layout.requires_grad = False
-                    # tgt.requires_grad = False
+                    tgt.requires_grad = False
+                    tgt_y.requires_grad = False
                     with autocast():
                         # 前向传播
-                        output = cofs_model(src, layout, src, seq_num, tgt_num)
+                        output = cofs_model(src, layout, tgt, src_len, tgt_len)
                         # 计算损失
-                        loss = loss_calculate(src, output, tgt_num, config)
+                        loss = loss_calculate(tgt_y, output, tgt_len, config)
                     val_loss += loss.item()
 
                 val_loss /= len(val_dataLoader)
