@@ -93,7 +93,10 @@ if __name__ == '__main__':
             "feed_forward_dimensions": network_param['feed_forward_dimensions'],
             "activation": network_param['activation'],
             "weight_decay": weight_decay,
-            "warmup_steps": warmup_steps
+            "warmup_steps": warmup_steps,
+            "decay_steps": decay_steps,
+            "decay_final_steps": decay_final_steps,
+            "final_lr": final_lr,
         },
         mode=wandb_mode,
     )
