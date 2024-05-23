@@ -11,6 +11,7 @@ from network.network import cofs_network
 from process.dataset import *
 from utils.loss_cal import *
 from utils.monitor import *
+from utils.atiss_loss import get_losses
 
 isDebug = True if sys.gettrace() else False
 
@@ -214,7 +215,8 @@ if __name__ == '__main__':
                 # 前向传播
                 output = cofs_model(src, layout, tgt, src_len, tgt_len)
                 # 计算损失
-                loss = loss_calculate(tgt_y, output, tgt_len, config)
+                # loss = loss_calculate(tgt_y, output, tgt_len, config)
+                loss = get_losses(tgt_y, output, config, tgt_y_len)
 
             avg_loss += loss.item()
             scaler.scale(loss).backward()
@@ -245,7 +247,8 @@ if __name__ == '__main__':
                         # 前向传播
                         output = cofs_model(src, layout, tgt, src_len, tgt_len)
                         # 计算损失
-                        loss = loss_calculate(tgt_y, output, tgt_len, config)
+                        # loss = loss_calculate(tgt_y, output, tgt_len, config)
+                        loss = get_losses(tgt_y, output, config, tgt_y_len)
                     val_loss += loss.item()
 
                 val_loss /= len(val_dataLoader)

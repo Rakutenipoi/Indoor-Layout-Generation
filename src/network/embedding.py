@@ -81,10 +81,12 @@ class RelativePositionEncoding(nn.Module):
 
         out = self.E_relative_position.index_select(0, self.relative_index)
         out = out.expand(batch_size, seq_length, self.E_dims)
-        property_out = self.E_property_relative_position.index_select(0, self.property_relative_index)
-        property_out = property_out.expand(batch_size, seq_length, self.E_dims)
 
-        return out + property_out
+        # property_out = self.E_property_relative_position.index_select(0, self.property_relative_index)
+        # property_out = property_out.expand(batch_size, seq_length, self.E_dims)
+        # out = out + property_out
+
+        return out
 
 class ObjectIndexEncoding(nn.Module):
     def __init__(self, object_max_num, attributes_num=8, E_dims=256):
