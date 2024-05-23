@@ -4,8 +4,11 @@ data:
     annotation_file: ""
     room_layout_size: 256
     attributes_num: 8
-    object_max_num: 15
+    object_max_num: 8
     class_num: 21
+    padding_token: 0
+    start_token: 22
+    end_token: 23
     permutation_num: 100
     bounds_translations: [-2.762500499999998, 0.045, -2.7527500000000007, 2.778441746198965, 3.6248395981292725, 2.818542771063899]
     bounds_sizes: [0.0399828836528625, 0.020000020334800084, 0.012771999999999964, 2.8682, 1.7700649999999998, 1.698315]
@@ -17,9 +20,7 @@ network:
     n_heads: 4
     dimensions: 256
     feed_forward_dimensions: 1024
-    max_sequence_length: 120
-    start_token: 22
-    end_token: 0
+    max_sequence_length: 80
     activation: "gelu"
     sampler:
         hidden_input_dimension: 512
