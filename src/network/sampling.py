@@ -9,7 +9,7 @@ else:
 device = torch.device(dev)
 
 class Sampler(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, max_len):
         super().__init__()
         self.input_dimension = config['network']['dimensions']
         self.class_num = config['network']['sampler']['output_dimension']
@@ -18,7 +18,7 @@ class Sampler(nn.Module):
         self.output_dimension = config['network']['sampler']['output_dimension']
         self.attributes_num = config['data']['attributes_num']
         self.object_max_num = config['data']['object_max_num'] + 2
-        self.max_len = config['network']['max_sequence_length']
+        self.max_len = max_len
 
         self.continue_layers = nn.Sequential(
             nn.Linear(self.input_dimension, self.hidden_input_dimension),
@@ -43,12 +43,14 @@ class Sampler(nn.Module):
 
 
     def forward(self, x):
+        B, L, D = x.size()
+
         discrete_layer = self.discrete_layer(x)
-        discrete_layer = discrete_layer.reshape(-1, self.max_len, self.class_num)
+        discrete_layer = discrete_layer.reshape(-1, L, self.class_num)
         discrete_layer = self.mask * discrete_layer
 
         continue_layer = self.continue_layers(x)
-        continue_layer = continue_layer.reshape(-1, self.max_len, self.output_dimension)
+        continue_layer = continue_layer.reshape(-1, L, self.output_dimension)
         continue_layer = self.inv_mask * continue_layer
 
         x = discrete_layer + continue_layer

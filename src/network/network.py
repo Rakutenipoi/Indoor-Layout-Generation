@@ -75,9 +75,9 @@ class cofs_network(nn.Module):
             self.dimensions,
         )
 
-        self.decoder_to_output = nn.Linear((self.max_sequence_length) * self.dimensions, self.max_sequence_length * self.dimensions)
+        self.decoder_to_output = nn.Linear((self.max_sequence_length) * self.dimensions, self.attributes_num * self.dimensions)
 
-        self.sampler = Sampler(config)
+        self.sampler = Sampler(config, max_len=self.attributes_num)
 
     def get_padding_mask(self, seq_length, seq_max_len, batch_size=32):
         padding_mask = torch.zeros((batch_size, seq_max_len), device=device)

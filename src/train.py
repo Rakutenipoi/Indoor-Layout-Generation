@@ -122,10 +122,12 @@ if __name__ == '__main__':
     # 对src_dataset进行划分
     train_size = int(0.8 * len(src_dataset))
     test_size = len(src_dataset) - train_size
-    train_dataset, test_dataset = torch.utils.data.random_split(src_dataset, [train_size, test_size], generator=torch.Generator().manual_seed(42))
+    train_dataset, test_dataset = torch.utils.data.random_split(src_dataset, [train_size, test_size],
+                                                                generator=torch.Generator().manual_seed(42))
     train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42))
+    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size],
+                                                               generator=torch.Generator().manual_seed(42))
     train_dataLoader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     val_dataLoader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
@@ -167,8 +169,10 @@ if __name__ == '__main__':
         else:
             return final_lr + (decay_final_steps - lr_step) / (decay_final_steps - decay_steps) * (lr - final_lr)
 
+
     # 优化器
-    optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8, weight_decay=weight_decay)
+    optimizer = torch.optim.AdamW(cofs_model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8,
+                                  weight_decay=weight_decay)
     scheduler = LambdaLR(optimizer, lr_lambda)
 
     scaler = GradScaler()
@@ -191,13 +195,13 @@ if __name__ == '__main__':
             layout, src, tgt, tgt_y, src_len = batch
             layout = layout.to(torch.float32)
             src_len = src_len * attr_num
-            tgt_len = src_len - attr_num
-            tgt_y_len = tgt_len
+            tgt_len = torch.zeros((batch_size, 1), device=device, dtype=torch.int64)
+            tgt_y_len = src_len - attr_num
             # 设置requires_grad
             src.requires_grad = False
             layout.requires_grad = True
             tgt.requires_grad = True
-            tgt_y.requires_grad = False
+            tgt_y.requires_grad = True
 
             # src随机mask
             if random_mask:
@@ -222,24 +226,30 @@ if __name__ == '__main__':
             # 设置requires_grad为True
             src.requires_grad = True
 
-            with autocast():
-                # 前向传播
-                output = cofs_model(src, layout, tgt, src_len, tgt_len)
-                # 计算损失
-                # loss = loss_calculate(tgt_y, output, tgt_len, config)
-                label_loss, translation_loss, size_loss, angle_loss = get_losses(tgt_y, output, config, tgt_y_len)
+            for i in range(0, max_sequence_length - attr_num, attr_num):
+                input_mask = torch.zeros(max_sequence_length, device=device)
+                input_mask[:i + attr_num] = 1.0
+                tgt_len += attr_num
 
-            loss = label_loss + translation_loss + size_loss + angle_loss
-            avg_loss += loss.item()
-            avg_label_loss += label_loss.item()
-            avg_translation_loss += translation_loss.item()
-            avg_size_loss += size_loss.item()
-            avg_angle_loss += angle_loss.item()
-            scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(parameters=cofs_model.parameters(), max_norm=30, norm_type=2)
-            scaler.step(optimizer)
-            scaler.update()
-            scheduler.step()
+                with autocast():
+                    # 前向传播
+                    output = cofs_model(src, layout, tgt * input_mask, src_len, tgt_len)
+                    # 计算损失
+                    # loss = loss_calculate(tgt_y, output, tgt_len, config)
+                    label_loss, translation_loss, size_loss, angle_loss = get_losses(
+                        tgt_y[:, i: i + attr_num], output, config, tgt_y_len)
+
+                loss = label_loss + translation_loss + size_loss + angle_loss
+                avg_loss += loss.item()
+                avg_label_loss += label_loss.item()
+                avg_translation_loss += translation_loss.item()
+                avg_size_loss += size_loss.item()
+                avg_angle_loss += angle_loss.item()
+                scaler.scale(loss).backward()
+                torch.nn.utils.clip_grad_norm_(parameters=cofs_model.parameters(), max_norm=30, norm_type=2)
+                scaler.step(optimizer)
+                scaler.update()
+                scheduler.step()
 
         # 每隔5个epoch进行一次validation
         if epoch % 5 == 0:
@@ -247,8 +257,6 @@ if __name__ == '__main__':
                 cofs_model.eval()
                 val_loss, val_label_loss, val_translation_loss, val_size_loss, val_angle_loss = 0, 0, 0, 0, 0
                 for step, batch in enumerate(val_dataLoader):
-                    # 读取数据
-                    # 读取数据
                     batch = [b.to(device) for b in batch]
                     layout, src, tgt, tgt_y, src_len = batch
                     layout = layout.to(torch.float32)
@@ -259,34 +267,44 @@ if __name__ == '__main__':
                     layout.requires_grad = False
                     tgt.requires_grad = False
                     tgt_y.requires_grad = False
-                    with autocast():
-                        # 前向传播
-                        output = cofs_model(src, layout, tgt, src_len, tgt_len)
-                        # 计算损失
-                        # loss = loss_calculate(tgt_y, output, tgt_len, config)
-                        label_loss, translation_loss, size_loss, angle_loss = get_losses(tgt_y, output, config, tgt_y_len)
+                    for i in range(0, max_sequence_length - attr_num, attr_num):
+                        input_mask = torch.zeros(max_sequence_length, device=device)
+                        input_mask[:i + attr_num] = 1.0
+                        tgt_len += attr_num
+
+                        with autocast():
+                            # 前向传播
+                            output = cofs_model(src, layout, tgt * input_mask, src_len, tgt_len)
+                            # 计算损失
+                            # loss = loss_calculate(tgt_y, output, tgt_len, config)
+                            label_loss, translation_loss, size_loss, angle_loss = get_losses(
+                                tgt_y[:, i * attr_num: (i + 1) * attr_num], output, config, tgt_y_len)
+                    loss = label_loss + translation_loss + size_loss + angle_loss
                     val_loss += loss.item()
                     val_label_loss += label_loss.item()
                     val_translation_loss += translation_loss.item()
                     val_size_loss += size_loss.item()
                     val_angle_loss += angle_loss.item()
 
-                val_loss /= len(val_dataLoader)
-                val_label_loss /= len(val_dataLoader)
-                val_translation_loss /= len(val_dataLoader)
-                val_size_loss /= len(val_dataLoader)
-                val_angle_loss /= len(val_dataLoader)
-                wandb.log(data={'val_loss': val_loss, 'val_label_loss': val_label_loss, 'val_translation_loss': val_translation_loss,
+                val_steps = len(val_dataLoader) * (max_sequence_length - attr_num) // attr_num
+                val_loss /= val_steps
+                val_label_loss /= val_steps
+                val_translation_loss /= val_steps
+                val_size_loss /= val_steps
+                val_angle_loss /= val_steps
+                wandb.log(data={'val_loss': val_loss, 'val_label_loss': val_label_loss,
+                                'val_translation_loss': val_translation_loss,
                                 'val_size_loss': val_size_loss, 'val_angle_loss': val_angle_loss}, commit=False)
 
             cofs_model.train()
 
         # 更新pbar
-        avg_loss /= len(train_dataLoader)
-        avg_label_loss /= len(train_dataLoader)
-        avg_translation_loss /= len(train_dataLoader)
-        avg_size_loss /= len(train_dataLoader)
-        avg_angle_loss /= len(train_dataLoader)
+        train_steps = len(train_dataLoader) * (max_sequence_length - attr_num) // attr_num
+        avg_loss /= train_steps
+        avg_label_loss /= train_steps
+        avg_translation_loss /= train_steps
+        avg_size_loss /= train_steps
+        avg_angle_loss /= train_steps
         pbar.set_postfix(avg_loss=avg_loss, time=time.time() - epoch_time)
         pbar.update(1)
         wandb.log(data={'train_loss': avg_loss, 'label_loss': avg_label_loss, 'translation_loss': avg_translation_loss,
@@ -299,4 +317,3 @@ if __name__ == '__main__':
 
     torch.save(cofs_model, model_param_path + f'/bedrooms_model_{epochs}.pth')
     wandb.finish()
-

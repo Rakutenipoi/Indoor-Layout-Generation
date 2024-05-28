@@ -148,9 +148,10 @@ def _targets_from_tensor(X_target):
     return target
 
 def get_losses(tgt_y, output, config, tgt_y_len):
+    B, L, C = output.shape
     attributes_num = config['data']['attributes_num']
     class_num = config['data']['class_num'] + 3
-    max_len = attributes_num * (config['data']['object_max_num'] + 2)
+    max_len = L
 
     # 提取分类结果
     output_class = output[:, ::attributes_num, :class_num]
